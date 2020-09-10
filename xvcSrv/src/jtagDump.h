@@ -1,10 +1,7 @@
 #ifndef JTAG_DUMP_H
 #define JTAG_DUMP_H
 
-#include <cstdint>
-
 typedef unsigned long long JtagRegType;
-
 
 class JtagDumpCtx;
 
