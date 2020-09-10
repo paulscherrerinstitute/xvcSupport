@@ -28,15 +28,18 @@
 
 using std::vector;
 
+class JtagDumpCtx;
+
 // Abstract JTAG driver -- in most cases you'd want to
 // subclass JtagDriverAxisToJtag if you want to support
 // a new transport.
 class JtagDriver {
 protected:
-	unsigned debug_;
+	unsigned     debug_;
 	// occasionally drop a packet for testing (when enabled)
-	unsigned drop_;
-	bool     drEn_;
+	unsigned     drop_;
+	bool         drEn_;
+	JtagDumpCtx *snif_;
 
 public:
 	JtagDriver(int argc, char *const argv[], unsigned debug);
@@ -44,6 +47,8 @@ public:
 	// set/get debug level
 	void     setDebug(unsigned debug);
 	unsigned getDebug();
+
+    bool     getSniff();
 
 	void     setTestMode(unsigned flags);
 
@@ -86,7 +91,7 @@ public:
 	virtual void
 	dumpInfo(FILE *f = stdout) = 0;
 
-	virtual ~JtagDriver() {}
+	virtual ~JtagDriver();
 
     static void usage(); // to be implemented by subclass
 };

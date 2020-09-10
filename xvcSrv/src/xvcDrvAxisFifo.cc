@@ -58,7 +58,7 @@ JtagDriverZynqFifo::~JtagDriverZynqFifo()
 void
 JtagDriverZynqFifo::o32(unsigned idx, uint32_t v)
 {
-	if ( debug_ > 2 ) {
+	if ( getDebug() > 2 ) {
 		fprintf(stderr, "r[%d]:=0x%08x\n", idx, v);
 	}
 	map_.wr(idx, v);
@@ -68,7 +68,7 @@ uint32_t
 JtagDriverZynqFifo::i32(unsigned idx)
 {
 	uint32_t v = map_.rd(idx);
-	if ( debug_ > 2 ) {
+	if ( getDebug() > 2 ) {
 		fprintf(stderr, "r[%d]=>0x%08x\n", idx, v);
 	}
 	return v;

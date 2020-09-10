@@ -24,6 +24,7 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #include <math.h>
+#include <jtagDump.h>
 
 // To be defined by Makefile
 #ifndef XVC_SRV_VERSION
@@ -33,8 +34,14 @@
 JtagDriver::JtagDriver(int argc, char *const argv[], unsigned debug)
 : debug_ ( debug ),
   drop_  ( 0     ),
-  drEn_  ( false )
+  drEn_  ( false ),
+  snif_  ( new JtagDumpCtx )
 {
+}
+
+JtagDriver::~JtagDriver()
+{
+	delete snif_;
 }
 
 void
@@ -52,7 +59,13 @@ JtagDriver::setTestMode(unsigned flags)
 unsigned
 JtagDriver::getDebug()
 {
-	return debug_;
+	return (debug_ & 0xff);
+}
+
+bool
+JtagDriver::getSniff()
+{
+	return debug_ & 0x100;
 }
 
 SysErr::SysErr(const char *prefix)
@@ -274,7 +287,7 @@ unsigned siz;
 
 	setHdr ( &txBuf_[0], mkQuery() );
 
-	if ( debug_ > 1 ) {
+	if ( getDebug() > 1 ) {
 		fprintf(stderr, "query\n");
 	}
 
@@ -287,7 +300,7 @@ unsigned siz;
 	memDepth_ = memDepth( hdr );
 	periodNs_ = cvtPerNs( hdr );
 
-	if ( debug_ > 1 ) {
+	if ( getDebug() > 1 ) {
 		fprintf(stderr, "query result: wordSize %d, memDepth %d, period %ldns\n", wordSize_, memDepth_, (unsigned long)periodNs_);
 	}
 
@@ -337,7 +350,7 @@ unsigned      bytesTot       = wsz + 2*wordCeilBytes;
 
 uint8_t       *wp;
 
-	if ( debug_ > 1 ) {
+	if ( getDebug() > 1 ) {
 		fprintf(stderr, "sendVec -- bits %ld, bytes %ld, bytesTot %d\n", bits, bytesCeil, bytesTot);
 	}
 
@@ -360,6 +373,10 @@ uint8_t       *wp;
 	}
 
 	xferRel( &txBuf_[0], bytesTot, 0, tdo, bytesCeil );
+
+	if ( getSniff() ) {
+		snif_->processBuf( bits, tms, tdi, tdo );
+	}
 }
 
 void
@@ -547,7 +564,7 @@ unsigned        testMode = 0;
 bool            once     = false;
 bool            help     = false;
 
-	while ( (opt = getopt(argc, argv, "hvVot:D:p:M:T:")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "hvVost:D:p:M:T:")) > 0 ) {
         i_p = 0;
 		switch ( opt ) {
 			default:
@@ -568,6 +585,10 @@ bool            help     = false;
 
 			case 't':
 				target = optarg;
+				break;
+
+			case 's':
+				debug |= 0x100;
 				break;
 
 			case 'D':

@@ -174,7 +174,7 @@ char           cbuf[1024];
 		switch ( (cmd = getCmd( h )) ) {
 			case CMD_Q:
 				h |= ((dpt & 0xfffff) << 4 ) | (wsz-1);
-				if ( debug_ > 1 ) {
+				if ( getDebug() > 1 ) {
 					fprintf(stderr, "QUERY \n");
 				}
 				if ( f_ ) {
@@ -184,7 +184,7 @@ char           cbuf[1024];
 				break;
 
 			case CMD_S:
-				if ( debug_ > 1 ) {
+				if ( getDebug() > 1 ) {
 					fprintf(stderr, "SHIFT\n");
 				}
 				bits = getLen( h );
