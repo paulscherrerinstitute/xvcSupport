@@ -216,7 +216,7 @@ JtagDriverAxisToJtag::getHdr(uint8_t *buf)
 	Header hdr;
 	memcpy( &hdr, buf, sizeof(hdr) );
 	if ( ! isLE() ) {
-		hdr = ntohl( hdr );
+		hdr = __builtin_bswap32( hdr );
 	}
 	return hdr;
 }
@@ -227,7 +227,7 @@ JtagDriverAxisToJtag::setHdr(uint8_t *buf, Header   hdr)
 unsigned empty =  getWordSize() - sizeof(hdr);
 
 	if ( ! isLE() ) {
-		hdr = ntohl( hdr ); // just use for byte-swap
+		hdr = __builtin_bswap32( hdr );
 	}
 	memcpy( buf, &hdr, sizeof(hdr) );
 	memset( buf + sizeof(hdr), 0, empty );
