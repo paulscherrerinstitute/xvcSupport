@@ -29,8 +29,14 @@ CROSS=
 USR_CPPFLAGS=
 #
 # so that $(CROSS)$(CXX) points to a valid cross compiler
+#
+DRIVERS += drvAxilFifo.so
 
-all: xvcSrv drvFifo.so
+ifneq ($(TOSCAINC),)
+DRIVERS += drvTmemFifo.so
+endif
+
+all: xvcSrv $(DRIVERS)
 
 OBJS=xvcSrv.o xvcDrvLoopBack.o xvcConn.o xvcDrvUdp.o jtagDump.o
 
@@ -45,8 +51,11 @@ xvcSrv: $(OBJS)
 %.o: %.cc
 	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $^ -I. -O2 -c
 
-drvFifo.so: xvcDrvAxisFifo.cc
+drvAxilFifo.so: xvcDrvAxisFifo.cc
 	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. -O2 -o $@ $^
 
+drvTmemFifo.so: xvcDrvAxisTmem.cc xvcDrvAxisTmem.h xvcDriver.h
+	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. $(TOSCAINC) -O2 -o $@ $^ $(TOSCALIB) -Wl,-Bstatic -ltoscaApi -Wl,-Bdynamic -lrt
+
 clean:
-	$(RM) xvcSrv drvFifo.so $(OBJS)
+	$(RM) xvcSrv $(DRIVERS) $(OBJS)
