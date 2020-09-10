@@ -232,7 +232,7 @@ package body AxisToJtagPkg is
       data       : in slv
    ) return ProType is
    begin
-      return data(VER_SHIFT_C + VER_WIDTH_C - 1 downto VER_SHIFT_C);
+      return ProType( data(VER_SHIFT_C + VER_WIDTH_C - 1 downto VER_SHIFT_C) );
    end function getVersion;
 
    procedure setVersion(
@@ -247,21 +247,21 @@ package body AxisToJtagPkg is
       data       : in slv
    ) return CmdType is
    begin
-      return data(CMD_SHIFT_C + CMD_WIDTH_C - 1 downto CMD_SHIFT_C);
+      return CmdType( data(CMD_SHIFT_C + CMD_WIDTH_C - 1 downto CMD_SHIFT_C) );
    end function getCommand;
 
    function getXid(
       data       : in slv
    ) return XidType is
    begin
-      return data(XID_SHIFT_C + XID_WIDTH_C - 1 downto XID_SHIFT_C);
+      return XidType( data(XID_SHIFT_C + XID_WIDTH_C - 1 downto XID_SHIFT_C) );
    end function getXid;
 
    function getLen(
       data       : in slv
    ) return LenType is
    begin
-      return data(LEN_SHIFT_C + LEN_WIDTH_C - 1 downto LEN_SHIFT_C);
+      return LenType( data(LEN_SHIFT_C + LEN_WIDTH_C - 1 downto LEN_SHIFT_C) );
    end function getLen;
 
    procedure setErr(
