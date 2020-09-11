@@ -69,6 +69,10 @@ public:
 	virtual ~JtagDriverTmemFifo();
 
 	static void usage();
+
+	static bool needTargetArg() {
+		return false;
+	}
 };
 
 extern "C" JtagDriver *drvCreate(const char *target);

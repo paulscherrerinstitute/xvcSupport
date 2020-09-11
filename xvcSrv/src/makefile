@@ -51,7 +51,7 @@ xvcSrv: $(OBJS)
 %.o: %.cc
 	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $^ -I. -O2 -c
 
-drvAxilFifo.so: xvcDrvAxisFifo.cc
+drvAxilFifo.so: xvcDrvAxisFifo.cc xvcDriver.h xvcDrvAxisFifo.h
 	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. -O2 -o $@ $^
 
 drvTmemFifo.so: xvcDrvAxisTmem.cc xvcDrvAxisTmem.h xvcDriver.h
