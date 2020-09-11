@@ -94,6 +94,11 @@ public:
 	virtual ~JtagDriver();
 
     static void usage(); // to be implemented by subclass
+
+	static bool needTargetArg() // to be overridden by subclass
+	{
+		return true;
+	};
 };
 
 // Simple driver registry (only a single loadable driver is remembered)
@@ -111,6 +116,7 @@ public:
 private:
 	Factory creator_;
     Usage   helper_;
+	bool    needTargetArg_;
 
 	 DriverRegistry();
 	~DriverRegistry();
@@ -120,7 +126,7 @@ private:
 public:
 	JtagDriver *create(int argc, char *const argv[], const char *arg);
 
-	void registerFactory(Factory f, Usage h);
+	void registerFactory(Factory f, Usage h, bool needTargetArg);
 
     void usage();
 
@@ -146,7 +152,7 @@ public:
 	// (prior to init() being executed)
 	DriverRegistry *r = DriverRegistry::get();
 		if ( r ) {
-			r->registerFactory( createP, T::usage );
+			r->registerFactory( createP, T::usage, T::needTargetArg() );
 		}
 	}
 };

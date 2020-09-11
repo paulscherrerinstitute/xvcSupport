@@ -495,11 +495,12 @@ DriverRegistry::DriverRegistry()
 }
 
 void
-DriverRegistry::registerFactory(Factory f, Usage h)
+DriverRegistry::registerFactory(Factory f, Usage h, bool needTargetArg)
 {
 	printf("Registering Driver\n");
-	creator_ = f;
-    helper_  = h;
+	creator_       = f;
+    helper_        = h;
+	needTargetArg_ = needTargetArg;
 }
 
 void
@@ -538,6 +539,12 @@ DriverRegistry::create(int argc, char *const argv[], const char *arg)
 JtagDriver *drv;
 	if ( ! creator_ ) {
 		throw std::runtime_error("Internal Error: No driver module registered");
+	}
+	if ( needTargetArg_ ) {
+		if ( ! arg || ! *arg ) {
+			fprintf(stderr,"Need a -t <target> arg (e.g., -t <ip>[:port])\n\n\n");
+			throw std::runtime_error("Missing <target>");
+		}
 	}
 	drv = creator_( argc, argv, arg );
 	return drv;
@@ -621,42 +628,39 @@ bool            help     = false;
     // Reset opterr so that drivers can parse options after '--'
 	opterr = 0;
 
-	if ( ! target && ! help ) {
-		fprintf(stderr,"Need a -t <target> arg (e.g., -t <ip>[:port])\n\n\n");
-		usage( argv[0] );
-		return 1;
-	}
-
-	if ( 0 == strcmp( drvnam, "udp" ) ) {
-		if ( help ) {
-			fprintf(stderr,"\n");
-			JtagDriverUdp::usage();
-			return 0;
-		}
-		drv = new JtagDriverUdp( argc, argv, target );
-	} else if ( 0 == strcmp( drvnam, "loopback" ) ) {
-		if ( help ) {
-			JtagDriverLoopBack::usage();
-			return 0;
-		}
-		drv = new JtagDriverLoopBack( argc, argv, target );
-	} else if ( 0 == strcmp( drvnam, "udpLoopback" ) ) {
-		if ( help ) {
-			JtagDriverUdp::usage();
-			return 0;
-		}
-		drv  = new JtagDriverUdp( argc, argv, "localhost:2543" );
-		loop = new UdpLoopBack( target, 2543 );
-	} else {
-		if ( ! (hdl = dlopen( drvnam, RTLD_NOW | RTLD_GLOBAL )) ) {
-			throw std::runtime_error(std::string("Unable to load requested driver: ") + std::string(dlerror()));
+	try {
+		if ( 0 == strcmp( drvnam, "udp" ) ) {
+			DriverRegistrar<JtagDriverUdp> r;
+		} else if ( 0 == strcmp( drvnam, "loopback" ) ) {
+			DriverRegistrar<JtagDriverLoopBack> r;
+		} else if ( 0 == strcmp( drvnam, "udpLoopback" ) ) {
+			if ( help ) {
+				JtagDriverUdp::usage();
+				return 0;
+			}
+			drv  = new JtagDriverUdp( argc, argv, "localhost:2543" );
+			loop = new UdpLoopBack( target, 2543 );
+		} else {
+			if ( ! (hdl = dlopen( drvnam, RTLD_NOW | RTLD_GLOBAL )) ) {
+				throw std::runtime_error(std::string("Unable to load requested driver: ") + std::string(dlerror()));
+			}
 		}
 		if ( help ) {
 			registry->usage();
 			return 0;
 		}
-		drv = registry->create( argc, argv, target );
+
+		if ( ! drv ) {
+			drv = registry->create( argc, argv, target );
+		}
+
+	} catch ( std::runtime_error &e ) {
+		fprintf(stderr, "%s\n\n", e.what());
+		usage(argv[0]);
+		registry->usage();
+		return 1;
 	}
+
 
 	if ( ! drv ) {
 		fprintf(stderr,"ERROR: No transport-driver found\n");
