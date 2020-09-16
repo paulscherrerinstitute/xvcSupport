@@ -22,8 +22,10 @@ However, the protocol and its current support in Vivado has several drawbacks
     and requires AXI. In some use cases the AXI interface is already "owned"
     by an application and a second master to be used by XVC is not available.
 
-For the Impatient
------------------
+For the Impatient (Vivado/SLAC)
+-------------------------------
+
+If you need to use ISE on older devices then please skip this section.
 
 1) Add the AxisJtagDebugBridge module to your design; hook up to an AXI Stream.
    This should probably be a UDP server.
@@ -32,19 +34,76 @@ For the Impatient
    `AxisJtagDebugBridgeImpl`. The stub will be used by default by Vivado so you
    have to explicitly specify the `AxisJtagDebugBridgeImpl` architecture for
    instantiation.
-2) Add ILA cores; under Vivado-2016.04 these *must* be added to the hdl and
+2) Unless you are using the full SURF library from SLAC you have to instantiate
+   a vivado "debug bride" IP in "From JTAG to BSCAN" mode. This should be named
+   `DebugBridgeJtag` to match the instantiation in the AxisJtagDebugBridge wrapper.
+3) Add ILA cores; under Vivado-2016.04 these *must* be added to the hdl and
    cannot be added to an already synthesized design!
-3) Compile and install the `xvcSrv` program on a machine that is directly
+4) Compile and install the `xvcSrv` program on a machine that is directly
    connected to FW.
-4) Start `xvcSrv` (`udp_server_port` is where the AXI Stream is connected)
+5) Start `xvcSrv` (`udp_server_port` is where the AXI Stream is connected)
 
        xvcSrv -t <fw_ip_address>:<udp_server_port>
+
+   If you are not using the SLAC SURF infrastructure then you might need a
+   different driver (-D) and target (-t) spec.
 
 5) In Vivado connect to the target:
 
        open_hw
        connect_hw_server
        open_hw_target -xvc_url <xvc_server_ip>:2542
+
+Architecture
+------------
+
+A whole stack of soft- and firmware components are involved:
+
+Sofware:
+
+ - vivado hardware manager GUI interacts with the xilinx `hw_server` daemon.
+ - xilinx `hw_server` daemon talks to different 'cable drivers'. In case of
+   XVC this is the 'virtual cable' driver which uses TCP connection to communicate
+   with a peer.
+ - `xvcSrv` software which is provided by this package. This server handles
+   the XVC protocol on a TCP socket and communicates with firmware entities
+   which drive the JTAG lines.
+ - `xvcSrv driver` modules handle the specific firmware interface. There
+   are e.g., modules for 
+     - UDP communication (SLAC proprietary protocol stack)
+     - FIFO with AXILite interface for ZYNQ
+     - FIFO with TMEM interface for PSI's IFC board
+   It is fairly straight-forward to implement your own driver module
+   for your specific firmware-interface if necessary.
+
+Firmware:
+
+The firmware stack mirrors the software stack:
+
+ - a communication module interacts with the software upstream and features
+   downstream AXI-Stream interface. For architectures with a bus interface
+   this module typically implements a FIFO which can be driven from the bus
+   on one side and which has an AXI-Stream interface on the other side.
+
+   Bus-interface modules are available for AXILite/Zynq and TMEM.
+
+   In case of the SLAC UDP protocol stack the protocol routes a particular
+   UDP port to an AXI-Stream interface.
+
+ - The `AxisToJtag` entity which converts messages from the AXI-Stream interface
+   into JTAG transactions.
+
+ - A vivado `debug_bridge` IP. You must instantiate one of these in "From JTAG to BSCAN"
+   mode and connect the JTAG pins to the `AxisToJtag` entity.
+   If you name this bridge `DebugBridgeJtag` then you can directly use the `AxisJtagDebugBridge`
+   wrapper which wires a `AxisToJtag` entity to the debug bridge. When instantiating this wrapper
+   then you must specify the desired architecture (stub vs. true debug bridge, see below).
+
+ - Vivado ILA IPs. Vivado automatically connects those to the debug bridge.
+   
+You probably should make sure that you have no "hard" debug-bridge (which is driven by the
+hardware JTAG pins) in your design.
+
 
 Design Goals
 ------------
@@ -271,6 +330,66 @@ you can change just fine).
 Since the ILA with a single port works just fine we believe the restriction
 to a single port to be a simple bug (failure to remove an obsolete check).
 Contact the authors for more information.
+
+Xilinx ISE Notes
+----------------
+
+Firmware Stack
+- - - - - - - -
+
+ISE lacks the debug bridge IP and automatic ILA connection feature of Vivado.
+In ISE an ILA IP has a control port which must be driven from a JTAG interface.
+
+To that end you have to instantiate a xilinx `ICON` IP with a `BSCAN` interface.
+When creating the IP core from the GUI select `Disable Boundary Scan Component Instance`.
+This will result in an `ICON` with a `BSCAN` as well as a control port. The
+`BSCAN` port is what we want to drive with our "soft JTAG" stack. If the checkbox
+is un-checked then the `ICON` is wired to the hardware JTAG controller and not
+accessible from software (unless we'd connect a hardware cable but then you would
+not be reading this).
+
+The last missing piece is the `Jtag2BSCAN` entity which drives the BSCAN port
+from JTAG. Thus, under ISE you have a firmware stack:
+
+  - bus/Axi-Stream interface (e.g., `Axis2TmemFifo`)
+  - Axi-Stream to JTAG (`AxisToJtag`)
+  - JTAG to BSCAN (`Jtag2BSCAN`)
+  - BSCAN to ILA control port (Xilinx `ICON` core with external `BSCAN` interface)
+  - ILA with control port
+
+In addition to all the RTL files make sure you add the UCF constraints to your project!
+
+Connecting ChipScope
+- - - - - - - - - - -
+Note that you have to use ChipScope -- the Vivado hardware-manager does not recognize the
+ICON/ILA when driven with this package (but Vivado works fine when using a vivado design that
+uses the vivado debug bridge as described above).
+
+1. Start `xvcSrv` on the target system.
+2. In ChipScope's `JTAG Chain` menu (on the host system), select `Open Plugin`
+3. Enter Plug-in Parameters:
+
+      xilinx_xvc HOST=<host_ip>:2542 disableversioncheck=true
+
+   substitute your target system's `<host_ip>`, of course. BTW: Since XVC uses TCP you can very
+   conveniently use ssh tunnels and forwarded ports between the ChipScope host and the target
+   system.
+4. Another pop-up appears and after you click 'Ok' you are in business.
+  
+
+PSI Note
+- - - - -
+For the IFC board there is a `Tmem2ICONWrapper` wrapper which glues all the pieces together and which
+can be hooked to any place in `TUSER` memory.
+
+E.g., if you connect `Tmem2ICONWrapper` to the `CS2` window of `TUSER2` at offset `0x00000000` then
+you can start `xvcSrv` on the IFC board:
+
+    xvcSrv -D tmem -t USER2:0x200000
+
+If the interrupt line is hooked up, e.g., to `USER1` interrupt 13 then you can use irq-driven mode:
+
+    xvcSrv -D tmem -t USER2:0x200000 -- -i /dev/toscauserevents1.13
 
 Appendix
 ========
