@@ -29,6 +29,8 @@
 class JtagDriverTmemFifo : public JtagDriverAxisToJtag {
 private:
 	static const int      FIFO_DAT_IDX   =  0;
+	static const int      FIFO_MAGIC_IDX =  1; // reading this will ALSO read the FIFO
+                                                   // (use only during detection)!
 	static const int      FIFO_CSR_IDX   =  2;
 	static const uint32_t FIFO_CSR_RST   =  (1<<23);
 	static const uint32_t FIFO_CSR_EOFO  =  (1<<16);
@@ -37,9 +39,16 @@ private:
 	static const uint32_t FIFO_CSR_IENI  =  (1<<19);
 	static const uint32_t FIFO_CSR_NWRDS =  0;
 	static const uint32_t FIFO_CSR_NWRDM =  0xffff;
+	static const uint32_t FIFO_CSR_MAXWS =  24;
+	static const uint32_t FIFO_CSR_MAXWM =  0x0f000000;
+	static const uint32_t FIFO_CSR_VERSM =  0xf0000000;
+	static const uint32_t FIFO_CSR_VERSS =  28;
+
+	static const uint32_t SUPPORTED_VERS = 0;
+	static const uint32_t MAGIC          = 0x6666aaaa;
 
 	unsigned         toscaSpace_;
-	unsigned         toscaBase_;
+	unsigned long    toscaBase_;
 
 	unsigned long     maxVec_;
 	unsigned          wrdSiz_;
@@ -69,10 +78,6 @@ public:
 	virtual ~JtagDriverTmemFifo();
 
 	static void usage();
-
-	static bool needTargetArg() {
-		return false;
-	}
 };
 
 extern "C" JtagDriver *drvCreate(const char *target);

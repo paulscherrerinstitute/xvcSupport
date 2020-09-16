@@ -22,6 +22,7 @@
 
 #include <xvcDrvAxisTmem.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <toscaApi.h>
 
 JtagDriverTmemFifo::JtagDriverTmemFifo(int argc, char *const argv[], const char *devnam)
@@ -34,6 +35,16 @@ uint32_t      csrVal;
 unsigned long maxBytes;
 unsigned long maxWords;
 int           opt;
+const char   *basp;
+char         *endp;
+
+
+	toscaSpace_ = toscaStrToAddrSpace(devnam, &basp);
+	toscaBase_  = strtoul(basp, &endp, 0);
+	if ( ! toscaSpace_ || (endp == basp)  ) {
+		fprintf(stderr, "Invalid <target>: must be '<tosca_addr_space>:<numerical_base_address>'\n");
+		throw std::runtime_error("Invalid <target>");
+	}
 
 	while ( (opt = getopt(argc, argv, "i")) > 0 ) {
 		switch ( opt ) {
@@ -46,10 +57,21 @@ int           opt;
 
 	reset();
 
+	if ( MAGIC != i32( FIFO_MAGIC_IDX ) ) {
+		fprintf( stderr, "No magic firmware ID found; please verify address-space and base-address\n" );
+		throw std::runtime_error("TMEM Device not found");
+	}
+
 	csrVal  = i32( FIFO_CSR_IDX );
+
+	if ( ((csrVal & FIFO_CSR_VERSM) >> FIFO_CSR_VERSS) != SUPPORTED_VERS ) {
+		fprintf( stderr, "Firmware interface version not supported by this driver\n");
+		throw std::runtime_error("TMEM Device wrong FW version");
+	}
+
 	wrdSiz_ = 4;
 
-	maxWords = ( ((csrVal > 24) & 0xf) << 10 ) / wrdSiz_;
+	maxWords = (((csrVal & FIFO_CSR_MAXWM) >> FIFO_CSR_MAXWS) << 10 ) / wrdSiz_;
 
 	// one header word; two vectors must fit
 	maxBytes = (maxWords - 1) * wrdSiz_;
