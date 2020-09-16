@@ -1,0 +1,4 @@
+The Jtag2BSCAN module can be used under ISE (where no debug
+bridge in JTAG -> BSCAN mode is available) to connect an
+ICON core to JTAG. Note that you need the JtagTapFSM and JtagTapIR
+modules as well.
