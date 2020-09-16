@@ -54,12 +54,14 @@ architecture Impl of JtagTapIR is
 
   type RegNType is record
     ir           : std_logic_vector(IR_LENGTH_G - 1 downto 0);
-    tdoSelDR     : std_logic;
+    selBypass    : std_logic;
+    selUser      : std_logic;
   end record RegNType;
 
   constant REG_N_INIT_C : RegNType := (
-    ir       => REG_IDCODE_G,
-    tdoSelDR => '0'
+    ir           => REG_IDCODE_G,
+    selBypass    => '0',
+    selUser      => '0'
   );
 
   type RegPType is record
@@ -90,6 +92,14 @@ begin
       v := REG_N_INIT_C;
     elsif ( updateIR = '1' ) then
       v.ir := rp.shift_ir;
+    end if;
+
+    v.selBypass := '0';
+    v.selUser   := '0';
+    if ( v.ir = REG_BYPASS_C ) then
+       v.selBypass := '1';
+    elsif ( v.ir = REG_USER_G ) then
+       v.selUser   := '1';
     end if;
 
     rnin <= v;
@@ -139,8 +149,8 @@ begin
   end process P_SEQ_P;
 
 
-  selBYPASS <= '1' when ( rn.ir = REG_BYPASS_C ) else '0';
-  selUSER   <= '1' when ( rn.ir = REG_USER_G   ) else '0';
+  selBYPASS <= rn.selBypass;
+  selUSER   <= rn.selUser;
 
   -- tdo must still be registered on falling edge
   tdo       <= rp.shift_ir(0) when shiftIR = '1' else rp.shift_dr(0);

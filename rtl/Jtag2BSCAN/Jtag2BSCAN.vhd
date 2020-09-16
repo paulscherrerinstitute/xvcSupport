@@ -56,13 +56,15 @@ architecture Impl of Jtag2BSCAN is
     captureDR : std_logic;
     shiftDR   : std_logic;
     updateDR  : std_logic;
+    drckGate  : std_logic;
   end record RegType;
 
   constant REG_INIT_C : RegType := (
     tdo       => '0',
     captureDR => '0',
     shiftDR   => '0',
-    updateDR  => '0'
+    updateDR  => '0',
+    drckGate  => '1'
   );
 
   signal r, rin : RegType := REG_INIT_C;
@@ -138,6 +140,7 @@ begin
     v.captureDR := captureDRLoc;
     v.shiftDR   := shiftDRLoc;
     v.updateDR  := updateDRLoc;
+    v.drckGate  := (not captureDRLoc and not shiftDRLoc);
     rin <= v;
   end process P_COMB;
 
@@ -151,7 +154,16 @@ begin
 
   CAPTURE <= r.captureDR;
   SHIFT   <= r.shiftDR;
-  UPDATE  <= r.updateDR and updateDRLoc;
+  -- original BSCANE2 deasserts on the positive clock edge when IR is
+  -- updated:
+  --
+  --   UPDATE <= r.updateDR and updateDrLoc
+  --
+  -- however, we want to minimize the combinatorial logic here
+  -- because ICON seems to use UPDATE as a clock and any combinatorial
+  -- input seems to be treated as a different input clock (which we'd have
+  -- to constrain...)
+  UPDATE  <= r.updateDR -- and updateDRLoc;
   SEL     <= selUSERLoc;
   RESET   <= testLogicResetLoc;
   TDI     <= JTDI;
@@ -174,5 +186,5 @@ begin
   --        to never switch concurrently with captureDRLoc, shiftDRLoc and thus
   --        there is no chance for glitches.
 
-  DRCK    <= (JTCK or (not r.captureDR and not r.shiftDR)) and selUSERLoc;
+  DRCK    <= (JTCK or r.drckGate ) and selUSERLoc;
 end architecture Impl;
