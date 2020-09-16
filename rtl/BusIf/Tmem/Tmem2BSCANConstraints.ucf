@@ -1,0 +1,29 @@
+# JTAG
+NET "*B_XvcJtagWrapper.tck" TNM_NET = jtag_TCK ;
+TIMESPEC TS_jtag_TCK      = PERIOD "jtag_TCK" 30 ns HIGH 50%;
+# User should constrain crossings from clock that goes
+# into the AxisToJtag entity to TCK and backwards.
+#TIMESPEC TS_xuser_to_jtag = FROM "XUSER_CLK" TO "jtag_TCK"  15 ns DATAPATHONLY;
+#TIMESPEC TS_jtag_to_xuser = FROM "jtag_TCK"  TO "XUSER_CLK" 15 ns DATAPATHONLY;
+TIMESPEC TS_jtag_to_J_CLK = FROM "jtag_TCK"  TO "J_CLK"     15 ns DATAPATHONLY;
+TIMESPEC TS_J_CLK_to_jtag = FROM "J_CLK"     TO "jtag_TCK"  15 ns DATAPATHONLY;
+TIMESPEC TS_jtag_to_U_CLK = FROM "jtag_TCK"  TO "U_CLK"     15 ns DATAPATHONLY;
+TIMESPEC TS_U_CLK_to_jtag = FROM "U_CLK"     TO "jtag_TCK"  15 ns DATAPATHONLY;
+
+NET "*B_XvcJtagWrapper.bscn_upd" TNM_NET = jtag_UPDATE ;
+NET "*B_XvcJtagWrapper.bscn_dck" TNM_NET = jtag_DRCK;
+TIMESPEC TS_jtag_UPDATE = PERIOD "jtag_UPDATE" 30 ns HIGH 50%;
+TIMESPEC TS_jtag_DRCK   = PERIOD "jtag_DRCK"   30 ns HIGH 50%;
+#NET "*B_XvcJtagWrapper.bscn_tdo" TNM_NET = tnm_bscn_tdo ;
+#NET "*B_XvcJtagWrapper.bscn_tdi" TIG ;
+#NET "*B_XvcJtagWrapper.bscn_rst" TNM_NET = tnm_bscn_tdo ;
+#NET "*B_XvcJtagWrapper.bscn_shf" TNM_NET = tnm_bscn_tdo ;
+#NET "*B_XvcJtagWrapper.bscn_cap" TNM_NET = tnm_bscn_tdo ;
+#NET "*B_XvcJtagWrapper.bscn_sel" TNM_NET = tnm_bscn_tdo ;
+#TIMESPEC TS_tnm_bscn_tdo  = PERIOD "tnm_bscn_tdo"  100 ns HIGH 50%;
+
+#NET "xuser_fmc_io.xuser_fmc_12/xuser_ap_specific/jtag_i/tck" TIG ;
+#NET "xuser_fmc_io.xuser_fmc_12/xuser_ap_specific/jtag_i/tck" CLOCK_DEDICATED_ROUTE = FALSE ;
+#NET "xuser_fmc_io.xuser_fmc_12/xuser_ap_specific/jtag_i/tms" TIG ;
+#NET "xuser_fmc_io.xuser_fmc_12/xuser_ap_specific/jtag_i/tdo" TIG ;
+#NET "xuser_fmc_io.xuser_fmc_12/xuser_ap_specific/jtag_i/tdi" TIG ;
