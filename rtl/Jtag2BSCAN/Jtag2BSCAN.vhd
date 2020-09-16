@@ -1,3 +1,6 @@
+-- Basic Emulation of BSCANE2 for bridging JTAG to xilinx ICON core
+
+-- Till Straumann, 09/2020.
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
