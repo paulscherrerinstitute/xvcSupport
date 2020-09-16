@@ -41,19 +41,19 @@ package TextUtilPkg is
 
    -- converts an integer into a single character
    -- (can also be used for hex conversion and other bases)
-   function chr(int : integer) return character;
+   function chr(n : integer) return character;
 
    -- Converts a character into an integer
    function int(c : character) return integer;
    
    -- converts integer into string using specified base
-   function str(int : integer; base : integer) return string;
+   function str(n : integer; base : integer) return string;
 
    -- converts a string with specified base into an integer
    function int(s : string; base : integer) return integer;
 
    -- converts integer to string, using base 10
-   function str(int : integer) return string;
+   function str(n : integer) return string;
 
    -- converts a time to a string
    function str (tim : time) return string;
@@ -197,10 +197,10 @@ package body TextUtilPkg is
    -- values are mapped to the characters A-Z
    -- (this is usefull for systems with base > 10)
    -- (adapted from Steve Vogwell's posting in comp.lang.vhdl)
-   function chr(int : integer) return character is
+   function chr(n : integer) return character is
       variable c : character;
    begin
-      case int is
+      case n is
          when 0      => c := '0';
          when 1      => c := '1';
          when 2      => c := '2';
@@ -290,7 +290,7 @@ package body TextUtilPkg is
 
    -- convert integer to string using specified base
    -- (adapted from Steve Vogwell's posting in comp.lang.vhdl)
-   function str(int : integer; base : integer) return string is
+   function str(n : integer; base : integer) return string is
       variable temp    : string(1 to 10);
       variable num     : integer;
       variable abs_int : integer;
@@ -298,7 +298,7 @@ package body TextUtilPkg is
       variable power   : integer := 1;
    begin
       -- bug fix for negative numbers
-      abs_int := abs(int);
+      abs_int := abs(n);
       num     := abs_int;
 
       while num >= base loop            -- Determine how many
@@ -312,7 +312,7 @@ package body TextUtilPkg is
       end loop;  -- side.
 
       -- return result and add sign if required
-      if int < 0 then
+      if n < 0 then
          return '-'& temp(1 to len);
       else
          return temp(1 to len);
@@ -339,9 +339,9 @@ package body TextUtilPkg is
 
 
    -- convert integer to string, using base 10
-   function str(int : integer) return string is
+   function str(n : integer) return string is
    begin
-      return str(int, 10);
+      return str(n, 10);
    end str;
 
    -- convert a time to string
