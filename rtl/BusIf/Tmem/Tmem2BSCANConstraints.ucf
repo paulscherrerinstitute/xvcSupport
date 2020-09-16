@@ -1,5 +1,5 @@
 # JTAG
-NET "*B_XvcJtagWrapper.tck" TNM_NET = jtag_TCK ;
+NET "*B_XvcJtagWrapper.tck_in" TNM_NET = jtag_TCK ;
 TIMESPEC TS_jtag_TCK      = PERIOD "jtag_TCK" 30 ns HIGH 50%;
 # User should constrain crossings from clock that goes
 # into the AxisToJtag entity to TCK and backwards.

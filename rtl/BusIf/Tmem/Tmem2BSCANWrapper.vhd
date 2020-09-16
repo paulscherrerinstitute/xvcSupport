@@ -74,6 +74,7 @@ begin
 
     attribute KEEP            : string;
     attribute KEEP of tck     : signal is "TRUE";
+    attribute KEEP of tck_in  : signal is "TRUE";
     attribute KEEP of tms     : signal is "TRUE";
     attribute KEEP of tdo     : signal is "TRUE";
     attribute KEEP of tdi     : signal is "TRUE";
