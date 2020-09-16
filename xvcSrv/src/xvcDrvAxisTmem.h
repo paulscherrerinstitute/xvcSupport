@@ -20,8 +20,8 @@
 // the terms contained in the LICENSE.txt file.
 //-----------------------------------------------------------------------------
 
-#ifndef JTAG_DRIVER_ZYNQ_FIFO_H
-#define JTAG_DRIVER_ZYNQ_FIFO_H
+#ifndef JTAG_DRIVER_TMEM_FIFO_H
+#define JTAG_DRIVER_TMEM_FIFO_H
 
 #include <xvcDriver.h>
 #include <stdint.h>
@@ -47,12 +47,12 @@ private:
 	static const uint32_t SUPPORTED_VERS = 0;
 	static const uint32_t MAGIC          = 0x6666aaaa;
 
-	unsigned         toscaSpace_;
-	unsigned long    toscaBase_;
+	unsigned              toscaSpace_;
+	unsigned long         toscaBase_;
 
-	unsigned long     maxVec_;
-	unsigned          wrdSiz_;
-	bool              useIrq_;
+	unsigned long         maxVec_;
+	unsigned              wrdSiz_;
+	int                   irqFd_ ;
 
 public:
 
@@ -78,6 +78,7 @@ public:
 	virtual ~JtagDriverTmemFifo();
 
 	static void usage();
+
 };
 
 extern "C" JtagDriver *drvCreate(const char *target);

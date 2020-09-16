@@ -32,8 +32,6 @@ USR_CPPFLAGS=
 #
 DRIVERS += drvAxilFifo.so
 
-all: xvcSrv $(DRIVERS)
-
 OBJS=xvcSrv.o xvcDrvLoopBack.o xvcConn.o xvcDrvUdp.o jtagDump.o
 
 VERSION_INFO:='"$(shell git describe --always)"'
@@ -41,12 +39,8 @@ VERSION_INFO:='"$(shell git describe --always)"'
 CPPFLAGS+=-DXVC_SRV_VERSION=$(VERSION_INFO)
 CPPFLAGS+=$(USR_CPPFLAGS)
 
-$(OBJS): xvcDriver.h xvcSrv.h
 
 DRVOBJS =
-
-ifneq ($(TOSCAINC),)
-endif
 
 ifneq ($(TOSCALIB),)
 ifneq ($(TMEM_DRIVER_BUILTIN),YES)
@@ -56,6 +50,10 @@ CPPFLAGS+=-DDEFAULTDRVNAME='"tmem"'
 DRVOBJS += xvcDrvAxisTmem.o
 endif
 endif
+
+all: xvcSrv $(DRIVERS)
+
+$(OBJS): xvcDriver.h xvcSrv.h
 
 xvcSrv: $(OBJS) $(DRVOBJS)
 	$(CROSS)$(CXX) -o $@ $^ -ldl -Wl,--export-dynamic $(TOSCALIB) -lm -lpthread -lrt

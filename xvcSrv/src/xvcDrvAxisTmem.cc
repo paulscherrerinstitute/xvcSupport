@@ -24,12 +24,13 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <toscaApi.h>
+#include <fcntl.h>
 
 JtagDriverTmemFifo::JtagDriverTmemFifo(int argc, char *const argv[], const char *devnam)
 : JtagDriverAxisToJtag( argc, argv ),
   toscaSpace_( TOSCA_USER2 ),
   toscaBase_ ( 0x200000    ),
-  useIrq_    ( true        )
+  irqFd_     ( -1          )
 {
 uint32_t      csrVal;
 unsigned long maxBytes;
@@ -37,7 +38,7 @@ unsigned long maxWords;
 int           opt;
 const char   *basp;
 char         *endp;
-
+const char   *irqfn = 0;
 
 	toscaSpace_ = toscaStrToAddrSpace(devnam, &basp);
 	toscaBase_  = strtoul(basp, &endp, 0);
@@ -46,9 +47,9 @@ char         *endp;
 		throw std::runtime_error("Invalid <target>");
 	}
 
-	while ( (opt = getopt(argc, argv, "i")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "i:")) > 0 ) {
 		switch ( opt ) {
-			case 'i': useIrq_ = false; printf("Interrupts disabled\n"); break;
+			case 'i': irqfn = optarg; break;
 			default:
 				fprintf( stderr,"Unknown driver option -%c\n", opt );
 				throw std::runtime_error("Unknown driver option");
@@ -77,10 +78,17 @@ char         *endp;
 	maxBytes = (maxWords - 1) * wrdSiz_;
 
 	maxVec_ = maxBytes/2;
+
+	if ( irqfn && ( (irqFd_ = open(irqfn, O_RDWR)) < 0 ) ) {
+		perror("WARNING: Interrupt descriptor not found -- using polled mode");
+	}
 }
 
 JtagDriverTmemFifo::~JtagDriverTmemFifo()
 {
+	if ( irqFd_ >= 0 ) {
+		close( irqFd_ );
+	}
 }
 
 void
@@ -106,16 +114,14 @@ uint32_t
 JtagDriverTmemFifo::wait()
 {
 uint32_t evs = 0;
-	if ( useIrq_ ) {
-#ifdef FIXME
+	if ( irqFd_ >= 0 ) {
 		evs = 1;
-		if ( sizeof(evs) != write( map_.fd(), &evs, sizeof(evs) ) ) {
+		if ( sizeof(evs) != write( irqFd_, &evs, sizeof(evs) ) ) {
 			throw SysErr("Unable to write to IRQ descriptor");
 		}
-		if ( sizeof(evs) != read( map_.fd(), &evs, sizeof(evs) ) ) {
+		if ( sizeof(evs) != read( irqFd_, &evs, sizeof(evs) ) ) {
 			throw SysErr("Unable to read from IRQ descriptor");
 		}
-#endif
 	} // else busy wait
 	return evs;
 }
@@ -127,7 +133,7 @@ int set = 0;
 
 	o32( FIFO_CSR_IDX, FIFO_CSR_RST );
 	o32( FIFO_CSR_IDX, 0              );
-	if ( useIrq_ ) {
+	if ( irqFd_ >= 0 ) {
 		o32( FIFO_CSR_IDX, FIFO_CSR_IENI );
 	}
 }
@@ -237,7 +243,8 @@ void
 JtagDriverTmemFifo::usage()
 {
 	printf("  Axi Stream <-> TMEM Fifo Driver options: [-i]\n");
-	printf("  -i          : disable interrupts (use polled mode)\n");
+	printf("  -t <aspace>:<base_address>, e.g., -t USER2:0x200000\n");
+	printf("  -i <irq_file_name>        , e.g., -i /dev/toscauserevent1.13 (defaults to polled mode)\n");
 }
 
 static DriverRegistrar<JtagDriverTmemFifo> r("tmem");
