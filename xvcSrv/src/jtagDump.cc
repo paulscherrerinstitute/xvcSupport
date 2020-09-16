@@ -81,7 +81,7 @@ JtagState_UpdateDR::advance(JtagDumpCtx *context, int tms, int tdo, int tdi)
 {
 unsigned    bits = context->getDRLen();
 const char *mrk  = bits > sizeof(JtagRegType)*8 ? "*" : "";
-	printf("%s: DR sent: 0x%s%llx, recv: 0x%s%llx (total %d bits)\n", getName(), mrk, context->getDRo(), mrk, context->getDRi(), bits);
+	fprintf(stderr, "%s: DR[IR = %llx] sent: 0x%s%llx, recv: 0x%s%llx (total %d bits)\n", getName(), context->getIRo(), mrk, context->getDRo(), mrk, context->getDRi(), bits);
 	if ( tms ) {
 		context->changeState( &context->state_SelectDRScan_ );
 	} else {
@@ -152,7 +152,7 @@ JtagState_UpdateIR::advance(JtagDumpCtx *context, int tms, int tdo, int tdi)
 {
 unsigned    bits = context->getIRLen();
 const char *mrk  = bits > sizeof(JtagRegType)*8 ? "*" : "";
-	printf("%s: IR sent: 0x%llx%s, recv: 0x%s%llx (total %d bits)\n", getName(), context->getIRo(), mrk, mrk, context->getIRi(), bits);
+	fprintf(stderr, "%s: IR sent: 0x%llx%s, recv: 0x%s%llx (total %d bits)\n", getName(), context->getIRo(), mrk, mrk, context->getIRi(), bits);
 	if ( tms ) {
 		context->changeState( &context->state_SelectDRScan_ );
 	} else {
@@ -261,7 +261,7 @@ JtagDumpCtx::changeState(JtagState *newState)
 {
 #ifdef DEBUG
 	if ( (state_ != newState) ) {
-		printf("Entering %s\n", newState->getName());
+		fprintf(stderr, "Entering %s\n", newState->getName());
 	}
 #endif
 	state_ = newState;
@@ -271,7 +271,7 @@ void
 JtagDumpCtx::advance(int tms, int tdo, int tdi)
 {
 #if 0
-printf("A(%d)\n", !!tms);
+fprintf(stderr, "A(%d)\n", !!tms);
 #endif
 	state_->advance(this, tms, tdo, tdi);
 }
