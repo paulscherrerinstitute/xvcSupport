@@ -335,6 +335,31 @@ uint32_t currentPeriod = getPeriodNs();
 	return UNKNOWN_PERIOD == currentPeriod ? requestedPeriod : currentPeriod;
 }
 
+static void prwrds(FILE *f, uint8_t *tms, uint8_t *tdi, int wsz, int nbits)
+{
+int i;
+int nbytes = (nbits + 7)/8;
+const char *pre = tdi ? "TMS" : "TDO";
+
+	fprintf(f, "( %s => x\"", pre);
+	for ( i = wsz; i > nbytes; i-- ) {
+		fprintf(f, "00");
+	}
+	while ( --i >= 0 ) {
+		fprintf(f, "%02x", tms[i]);
+	}
+	if ( tdi ) {
+		fprintf(stderr, "\", TDI => x\"");
+		for ( i = wsz; i > nbytes; i-- ) {
+			fprintf(f, "00");
+		}
+		while ( --i >= 0 ) {
+			fprintf(f, "%02x", tdi[i]);
+		}
+	}
+	fprintf(stderr, "\", nbits => %d),\n", nbits);
+}
+
 void
 JtagDriverAxisToJtag::sendVectors(unsigned long bits, uint8_t *tms, uint8_t *tdi, uint8_t *tdo)
 {
@@ -344,9 +369,11 @@ unsigned long bytesCeil      = (bits  +   8 - 1 )/8;
 unsigned      wholeWords     = bytesCeil / wsz;
 unsigned      wholeWordBytes = wholeWords * wsz;
 unsigned      wordCeilBytes  = ((bytesCeil + wsz - 1)/wsz) * wsz;
-unsigned      idx;
 unsigned      bytesLeft      = bytesCeil - wholeWordBytes;
 unsigned      bytesTot       = wsz + 2*wordCeilBytes;
+int           lastbits       = bits - 8ULL*wholeWordBytes;
+unsigned      idx;
+int           bidx;
 
 uint8_t       *wp;
 
@@ -372,7 +399,25 @@ uint8_t       *wp;
 		memcpy( wp + wsz, & tdi[idx], bytesLeft );
 	}
 
+	if ( getDebug() > 1 ) {
+		for ( idx=0; idx < wholeWordBytes; idx += wsz ) {
+			prwrds(stderr, tms + idx, tdi + idx, wsz, 8*wsz);
+		}
+		if ( bytesLeft ) {
+			prwrds(stderr, tms + idx, tdi + idx, wsz, lastbits);
+		}
+	}
+
 	xferRel( &txBuf_[0], bytesTot, 0, tdo, bytesCeil );
+
+	if ( getDebug() > 1 ) {
+		for ( idx=0; idx < wholeWordBytes; idx += wsz ) {
+			prwrds(stderr, tdo + idx, 0, wsz, 8*wsz);
+		}
+		if ( bytesLeft ) {
+			prwrds(stderr, tdo + idx, 0, wsz, lastbits);
+		}
+	}
 
 	if ( getSniff() ) {
 		snif_->processBuf( bits, tms, tdi, tdo );
