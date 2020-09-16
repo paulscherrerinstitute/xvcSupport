@@ -19,9 +19,8 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 
-library surf;
-use surf.StdRtlPkg.all;
-use surf.AxiStreamPkg.all;
+use work.StdRtlPkg.all;
+use work.AxiStreamPkg.all;
 
 entity AxisToJtagCoreTb is
 end entity AxisToJtagCoreTb;
@@ -176,7 +175,7 @@ begin
       end if;
    end process P_RST;
 
-   U_DUT : entity surf.AxisToJtagCore
+   U_DUT : entity work.AxisToJtagCore
       generic map (
          AXIS_WIDTH_G  => W_C,
          CLK_DIV2_G    => 2
