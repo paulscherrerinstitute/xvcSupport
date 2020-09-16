@@ -2,7 +2,10 @@ AXI Stream to JTAG Core
 =======================
 
 This package implements a component which drives a JTAG port from data
-send over an AXI Stream.
+send over an AXI Stream. This is very useful if you want remote access
+to Xilinx ILAs without using the FPGA's hardware JTAG pins.
+Instead, the ILA is controlled from a JTAG controller in the fabric
+which can be remote-controlled in many different ways.
 
 Motivation
 ----------
@@ -11,6 +14,9 @@ Xilinx Vivado ILAs are accessed over JTAG but in many cases using a physical
 JTAG connection is impractical. Recent versions of Vivado support the Xilinx
 "virtual cable" protocol [XVC](https://www.xilinx.com/products/intellectual-property/xvc.html)
 which is very simple and permits remote access to embedded ILA cores.
+
+It is now possible to use this package with ISE/ChipScope as well if you
+are working with older devices.
 
 However, the protocol and its current support in Vivado has several drawbacks
 
@@ -356,6 +362,14 @@ from JTAG. Thus, under ISE you have a firmware stack:
   - JTAG to BSCAN (`Jtag2BSCAN`)
   - BSCAN to ILA control port (Xilinx `ICON` core with external `BSCAN` interface)
   - ILA with control port
+
+The `Jtag2BSCAN` module emulates a xilinx `BSCANE2` component and TAP controller(I got valuable inspiration from [bscan_equiv.v](https://sites.google.com/site/dbarawn/fpga-stuff/xilinxbscanequivalentforchipscopeuse)).
+While the author seems to get away with emulating a Spartan device (which
+boils down to supplying the correct IDCODE and using the correct IR length)
+I found that ChipScope would not find the ILAs on our Virtex6 devices unless
+I let the TAP controller emulate a Virtex6. I mention this here in case
+anyone ever uses the code on a different device: you may need to change
+the relevant generics...
 
 In addition to all the RTL files make sure you add the UCF constraints to your project!
 
