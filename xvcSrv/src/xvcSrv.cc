@@ -31,6 +31,10 @@
 #define XVC_SRV_VERSION "unknown"
 #endif
 
+#ifndef DEFAULTDRVNAME
+#define DEFAULTDRVNAME "udp"
+#endif
+
 JtagDriver::JtagDriver(int argc, char *const argv[], unsigned debug)
 : debug_ ( debug ),
   drop_  ( 0     ),
@@ -507,14 +511,16 @@ XvcServer::run()
 static void
 usage(const char *nm)
 {
+DriverRegistry *registry = DriverRegistry::get();
+
 	fprintf(stderr,"Usage: %s [-v{v}] [-Vh] [-D <driver>] [-p <port>] -t <target> [ -- <driver_options>]\n", nm);
 	fprintf(stderr,"  -t <target> : contact target (depends on driver; e.g., <ip[:port]>)\n");
 	fprintf(stderr,"  -h          : this message\n");
 	fprintf(stderr,"  -D <driver> : use transport driver 'driver'\n");
 	fprintf(stderr,"                   built-in drivers:\n");
-	fprintf(stderr,"                   'udp' (default)\n");
-	fprintf(stderr,"                   'loopback'\n");
+	registry->printRegisteredDrivers(stderr, "                   '%s'\n");
 	fprintf(stderr,"                   'udpLoopback'\n");
+	fprintf(stderr,"                the default driver is: '%s'\n", DEFAULTDRVNAME);
 	fprintf(stderr,"  -p <port>   : bind to TCP port <port> (default: 2542)\n");
 	fprintf(stderr,"  -M          : max XVC vector size (default 32768)\n");
 	fprintf(stderr,"  -v          : verbose (more 'v's increase verbosity)\n");
@@ -535,24 +541,57 @@ UdpLoopBack *loop = (UdpLoopBack*) arg;
 }
 
 DriverRegistry::DriverRegistry()
-: creator_(0)
 {
 }
 
 void
-DriverRegistry::registerFactory(Factory f, Usage h, bool needTargetArg)
+DriverRegistry::registerFactory(const char * const name, Factory f, Usage h, bool needTargetArg)
 {
-	printf("Registering Driver\n");
-	creator_       = f;
-    helper_        = h;
-	needTargetArg_ = needTargetArg;
+RegEntry e;
+	e.name_          = name;
+	e.creator_       = f;
+	e.helper_        = h;
+	e.needTargetArg_ = needTargetArg;
+	printf("Registering Driver '%s'\n", name);
+	entries_.push_back( e );
+}
+
+DriverRegistry::RegEntry *
+DriverRegistry::find(const char *drvnam)
+{
+int i;
+	i = entries_.size() - 1;
+	if ( drvnam && *drvnam ) {
+		while ( i >= 0 ) {
+			if ( 0 == strcmp( entries_[i].name_ , drvnam ) )
+				break;
+			i--;	
+		}
+	}
+	return i >= 0 ? &entries_[i] : 0;
+}
+
+bool
+DriverRegistry::has(const char *drvnam)
+{
+	return !! find( drvnam );
 }
 
 void
-DriverRegistry::usage()
+DriverRegistry::printRegisteredDrivers(FILE *f, const char *fmt)
 {
-	if ( helper_ ) {
-		helper_();
+int i;
+	for ( i = 0; i < entries_.size(); i++ ) {
+		fprintf(f, fmt, entries_[i].name_);
+	}
+}
+
+void
+DriverRegistry::usage(const char *drvnam)
+{
+RegEntry *e = find( drvnam );
+	if ( e && e->helper_ ) {
+		e->helper_();
 	}
 }
 
@@ -569,7 +608,7 @@ static DriverRegistry *theR = 0;
 DriverRegistry *
 DriverRegistry::get()
 {
-	return getP( false );
+	return getP( true );
 }
 
 DriverRegistry *
@@ -579,19 +618,21 @@ DriverRegistry::init()
 }
 
 JtagDriver *
-DriverRegistry::create(int argc, char *const argv[], const char *arg)
+DriverRegistry::create(const char * name, int argc, char *const argv[], const char *arg)
 {
 JtagDriver *drv;
-	if ( ! creator_ ) {
+RegEntry   *e = find( name );
+	if ( !e || ! e->creator_ ) {
 		throw std::runtime_error("Internal Error: No driver module registered");
 	}
-	if ( needTargetArg_ ) {
+	if ( e->needTargetArg_ ) {
 		if ( ! arg || ! *arg ) {
 			fprintf(stderr,"Need a -t <target> arg (e.g., -t <ip>[:port])\n\n\n");
 			throw std::runtime_error("Missing <target>");
 		}
 	}
-	drv = creator_( argc, argv, arg );
+	drv = e->creator_( argc, argv, arg );
+
 	return drv;
 }
 
@@ -602,7 +643,7 @@ int opt;
 
 unsigned        debug    = 0;
 const char     *target   = 0;
-const char     *drvnam   = "udp";
+const char     *drvnam   = DEFAULTDRVNAME;
 unsigned        port     = 2542;
 unsigned       *i_p      = 0;
 JtagDriver     *drv      = 0;
@@ -674,11 +715,7 @@ bool            help     = false;
 	opterr = 0;
 
 	try {
-		if ( 0 == strcmp( drvnam, "udp" ) ) {
-			DriverRegistrar<JtagDriverUdp> r;
-		} else if ( 0 == strcmp( drvnam, "loopback" ) ) {
-			DriverRegistrar<JtagDriverLoopBack> r;
-		} else if ( 0 == strcmp( drvnam, "udpLoopback" ) ) {
+		if ( 0 == strcmp( drvnam, "udpLoopback" ) ) {
 			if ( help ) {
 				JtagDriverUdp::usage();
 				return 0;
@@ -686,23 +723,26 @@ bool            help     = false;
 			drv  = new JtagDriverUdp( argc, argv, "localhost:2543" );
 			loop = new UdpLoopBack( target, 2543 );
 		} else {
-			if ( ! (hdl = dlopen( drvnam, RTLD_NOW | RTLD_GLOBAL )) ) {
-				throw std::runtime_error(std::string("Unable to load requested driver: ") + std::string(dlerror()));
+			if ( ! registry->has( drvnam ) ) {	
+				if ( ! (hdl = dlopen( drvnam, RTLD_NOW | RTLD_GLOBAL )) ) {
+					throw std::runtime_error(std::string("Unable to load requested driver: ") + std::string(dlerror()));
+				}
+				drvnam = 0;
 			}
 		}
 		if ( help ) {
-			registry->usage();
+			registry->usage( drvnam );
 			return 0;
 		}
 
 		if ( ! drv ) {
-			drv = registry->create( argc, argv, target );
+			drv = registry->create( drvnam, argc, argv, target );
 		}
 
 	} catch ( std::runtime_error &e ) {
 		fprintf(stderr, "%s\n\n", e.what());
 		usage(argv[0]);
-		registry->usage();
+		registry->usage( drvnam );
 		return 1;
 	}
 

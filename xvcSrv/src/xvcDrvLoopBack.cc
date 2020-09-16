@@ -341,4 +341,4 @@ socklen_t        sl;
 	}
 }
 
-static DriverRegistrar<JtagDriverLoopBack> r;
+static DriverRegistrar<JtagDriverLoopBack> r("loopback");

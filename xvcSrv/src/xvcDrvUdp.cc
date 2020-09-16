@@ -222,4 +222,4 @@ JtagDriverUdp::usage()
 	printf("  -f          : Enable IP fragmentation - note that FW does probably not support this!\n");
 }
 
-static DriverRegistrar<JtagDriverUdp> r;
+static DriverRegistrar<JtagDriverUdp> r("udp");

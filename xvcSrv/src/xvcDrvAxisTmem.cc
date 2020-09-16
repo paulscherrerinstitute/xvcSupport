@@ -240,4 +240,4 @@ JtagDriverTmemFifo::usage()
 	printf("  -i          : disable interrupts (use polled mode)\n");
 }
 
-static DriverRegistrar<JtagDriverTmemFifo> r;
+static DriverRegistrar<JtagDriverTmemFifo> r("tmem");

@@ -32,10 +32,6 @@ USR_CPPFLAGS=
 #
 DRIVERS += drvAxilFifo.so
 
-ifneq ($(TOSCAINC),)
-DRIVERS += drvTmemFifo.so
-endif
-
 all: xvcSrv $(DRIVERS)
 
 OBJS=xvcSrv.o xvcDrvLoopBack.o xvcConn.o xvcDrvUdp.o jtagDump.o
@@ -45,17 +41,35 @@ VERSION_INFO:='"$(shell git describe --always)"'
 CPPFLAGS+=-DXVC_SRV_VERSION=$(VERSION_INFO)
 CPPFLAGS+=$(USR_CPPFLAGS)
 
-xvcSrv: $(OBJS)
-	$(CROSS)$(CXX) -o $@ $^ -ldl -Wl,--export-dynamic -lm -lpthread
+$(OBJS): xvcDriver.h xvcSrv.h
 
-%.o: %.cc
-	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $^ -I. -O2 -c
+DRVOBJS =
+
+ifneq ($(TOSCAINC),)
+endif
+
+ifneq ($(TOSCALIB),)
+ifneq ($(TMEM_DRIVER_BUILTIN),YES)
+DRIVERS += drvTmemFifo.so
+else
+CPPFLAGS+=-DDEFAULTDRVNAME='"tmem"'
+DRVOBJS += xvcDrvAxisTmem.o
+endif
+endif
+
+xvcSrv: $(OBJS) $(DRVOBJS)
+	$(CROSS)$(CXX) -o $@ $^ -ldl -Wl,--export-dynamic $(TOSCALIB) -lm -lpthread -lrt
+
+$(OBJS) $(DRVOBJS): %.o: %.cc
+	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $< -I. $(TOSCAINC) -O2 -c
 
 drvAxilFifo.so: xvcDrvAxisFifo.cc xvcDriver.h xvcDrvAxisFifo.h
-	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. -O2 -o $@ $^
+	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. -O2 -o $@ $<
 
 drvTmemFifo.so: xvcDrvAxisTmem.cc xvcDrvAxisTmem.h xvcDriver.h
-	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. $(TOSCAINC) -O2 -o $@ $^ $(TOSCALIB) -Wl,-Bstatic -ltoscaApi -Wl,-Bdynamic -lrt
+	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. $(TOSCAINC) -O2 -o $@ $< $(TOSCALIB) -lrt
+
+xvcDrvAxisTmem.o: xvcDrvAxisTmem.cc xvcDrvAxisTmem.h xvcDriver.h
 
 clean:
-	$(RM) xvcSrv $(DRIVERS) $(OBJS)
+	$(RM) xvcSrv $(DRIVERS) $(OBJS) $(DRVOBJS)

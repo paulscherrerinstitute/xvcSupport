@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <vector>
+#include <string>
 
 using std::vector;
 
@@ -114,21 +115,32 @@ public:
 	typedef void         (*Usage)();
 
 private:
-	Factory creator_;
-    Usage   helper_;
-	bool    needTargetArg_;
+	typedef struct {
+		const char * name_;
+		Factory      creator_;
+		Usage        helper_;
+		bool         needTargetArg_;
+	} RegEntry;
+
+	vector<RegEntry> entries_;
 
 	 DriverRegistry();
 	~DriverRegistry();
 
 	static DriverRegistry *getP(bool creat);
 
+	RegEntry *find(const char *drvnam);
+
 public:
-	JtagDriver *create(int argc, char *const argv[], const char *arg);
+	JtagDriver *create(const char *drvnam, int argc, char *const argv[], const char *arg);
 
-	void registerFactory(Factory f, Usage h, bool needTargetArg);
+	void registerFactory(const char * const name, Factory f, Usage h, bool needTargetArg);
 
-    void usage();
+	void usage(const char *drvnam);
+
+	void printRegisteredDrivers(FILE *f, const char *fmt);
+
+	bool has(const char *drvnam);
 
 	static DriverRegistry *
 	get();
@@ -146,13 +158,13 @@ private:
 
 public:
 
-	DriverRegistrar()
+	DriverRegistrar(const char * const nm)
 	{
 	// avoid registring statically linked drivers
 	// (prior to init() being executed)
 	DriverRegistry *r = DriverRegistry::get();
 		if ( r ) {
-			r->registerFactory( createP, T::usage, T::needTargetArg() );
+			r->registerFactory( nm, createP, T::usage, T::needTargetArg() );
 		}
 	}
 };

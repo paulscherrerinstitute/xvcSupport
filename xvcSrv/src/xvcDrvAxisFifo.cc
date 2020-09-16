@@ -218,4 +218,4 @@ JtagDriverZynqFifo::usage()
 	printf("  -i          : disable interrupts (use polled mode)\n");
 }
 
-static DriverRegistrar<JtagDriverZynqFifo> r;
+static DriverRegistrar<JtagDriverZynqFifo> r("zynqAxis");
