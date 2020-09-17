@@ -416,6 +416,13 @@ uses the vivado debug bridge as described above).
    conveniently use ssh tunnels and forwarded ports between the ChipScope host and the target
    system.
 4. Another pop-up appears and after you click 'Ok' you are in business.
+
+#### ISE-14.7 Note
+
+I had problems generating the ICON (v1.06a) and ILA (v1.05a) cores which consistently
+would produce an error. Googling around reveals that this is not uncommon. The work-around
+is to enable the "All IP Versions" checkbox and use the previous version (ICON v1.05a and
+ILA v1.04a, respectively, worked for me).
   
 
 #### PSI Note
