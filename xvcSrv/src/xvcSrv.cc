@@ -147,6 +147,12 @@ JtagDriverAxisToJtag::getLen(Header x)
 	return ((x & LEN_MASK) >> LEN_SHIFT) + 1;
 }
 
+unsigned
+JtagDriverAxisToJtag::getVrs(Header x)
+{
+	return (x & VRS_MASK);
+}
+
 const char *
 JtagDriverAxisToJtag::getMsg(unsigned e)
 {
@@ -202,6 +208,17 @@ double   tmp;
 	return (uint32_t) round( pow( 10.0, tmp )*1.0E9/REF_FREQ_HZ() );
 }
 
+uint32_t
+JtagDriverAxisToJtag::encPerNs(uint32_t perNs)
+{
+double tmp;
+	if ( UNKNOWN_PERIOD == perNs ) {
+		return 0;
+	}
+	tmp = ((double)perNs)*REF_FREQ_HZ()/1.0E9;
+	return (uint32_t) round( log10( tmp ) * 256.0/4.0 );
+}
+
 unsigned
 JtagDriverAxisToJtag::getWordSize()
 {
@@ -215,14 +232,56 @@ JtagDriverAxisToJtag::getMemDepth()
 }
 
 JtagDriverAxisToJtag::Header
+JtagDriverAxisToJtag::mkQueryReply(Header   protoVers, unsigned wordSize, unsigned memDepth, uint32_t periodNs)
+{
+Header   rval;
+uint32_t periodEncoded = encPerNs( periodNs );
+
+	if ( protoVers != PVER0 ) {
+		throw std::runtime_error("mkQueryReply: unsupported protocol version");
+	}
+	if ( wordSize > 16 ) {
+		throw std::runtime_error("mkQueryReply: unsupported word size");
+	}
+	if ( memDepth >= (1<<16) ) {
+		throw std::runtime_error("mkQueryReply: unsupported memory depth");
+	}
+	if ( periodNs >= (1<<8) ) {
+		throw std::runtime_error("mkQueryReply: unsupported TCK clock period");
+	}
+	rval  = protoVers | CMD_Q;
+	rval |= (periodEncoded  &   0xff) << 20;
+	rval |= (memDepth       & 0xffff) <<  4;
+	rval |= ((wordSize - 1) &    0xf) <<  0;
+
+	return rval;
+}
+
+
+uint32_t
+JtagDriverAxisToJtag::getw32(uint8_t *buf)
+{
+	uint32_t w;
+	memcpy( &w, buf, sizeof(w) );
+	if ( ! isLE() ) {
+		w = __builtin_bswap32( w );
+	}
+	return w;
+}
+
+JtagDriverAxisToJtag::Header
 JtagDriverAxisToJtag::getHdr(uint8_t *buf)
 {
-	Header hdr;
-	memcpy( &hdr, buf, sizeof(hdr) );
+	return getw32( buf );
+}
+
+void
+JtagDriverAxisToJtag::setw32(uint8_t *buf, uint32_t w, unsigned l)
+{
 	if ( ! isLE() ) {
-		hdr = __builtin_bswap32( hdr );
+		w = __builtin_bswap32( w );
 	}
-	return hdr;
+	memcpy( buf, &w, l >= sizeof(w) ? sizeof(w) : l );
 }
 
 void
@@ -230,10 +289,7 @@ JtagDriverAxisToJtag::setHdr(uint8_t *buf, Header   hdr)
 {
 unsigned empty =  getWordSize() - sizeof(hdr);
 
-	if ( ! isLE() ) {
-		hdr = __builtin_bswap32( hdr );
-	}
-	memcpy( buf, &hdr, sizeof(hdr) );
+	setw32(buf, hdr);
 	memset( buf + sizeof(hdr), 0, empty );
 }
 

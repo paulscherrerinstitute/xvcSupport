@@ -251,18 +251,23 @@ private:
 	Header   mkQuery();
 	Header   mkShift(unsigned len);
 
-	virtual void         setHdr(uint8_t *buf, Header   hdr);
-
 protected:
+
+	virtual void          setHdr(uint8_t *buf, Header   hdr);
 
 	static       Header   getHdr(uint8_t *buf);
 
+	static       uint32_t getw32(uint8_t *buf);
+	static       void     setw32(uint8_t *buf, uint32_t w, unsigned l = sizeof(uint32_t));
 
-	static const Header   PVERS = 0x00000000;
+
+	static const Header   PVER0 = 0x00000000;
+	static const Header   PVERS = PVER0;
 	static const Header   CMD_Q = 0x00000000;
 	static const Header   CMD_S = 0x10000000;
 	static const Header   CMD_E = 0x20000000;
 
+	static const Header   VRS_MASK  = 0xc0000000;
 	static const Header   CMD_MASK  = 0x30000000;
 	static const unsigned ERR_SHIFT =  0;
 	static const Header   ERR_MASK  = 0x000000ff;
@@ -280,15 +285,26 @@ protected:
 	static uint32_t      getCmd(Header x);
 	static unsigned      getErr(Header x);
 	static unsigned long getLen(Header x);
+	static Header        getVrs(Header x);
+
+	static Header mkQueryReply
+	(
+		Header   protoVers,
+		unsigned wordSize,
+		unsigned memDepth,
+		uint32_t periodNs
+	);
 
     // returns error message or NULL (unknown error)
     static const char   *getMsg(unsigned error);
 
 
 	// extract from message header
-	unsigned wordSize(Header  reply);
-	unsigned memDepth(Header  reply);
-    uint32_t cvtPerNs(Header  reply);
+	static unsigned wordSize(Header  reply);
+	static unsigned memDepth(Header  reply);
+    static uint32_t cvtPerNs(Header  reply);
+
+    static uint32_t encPerNs(uint32_t);
 
 	static int isLE()
 	{

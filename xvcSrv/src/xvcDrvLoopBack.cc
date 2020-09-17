@@ -168,7 +168,7 @@ char           cbuf[1024];
 	i = 0;
 	uint32_t h = (((((txb[i+3]<<8)|txb[i+2])<<8)|txb[i+1])<<8)|txb[i+0];
 
-	if ( (h & 0xc0000000) != PVERS ) {
+	if ( getVrs(h) != PVER0 ) {
 		h = (h & ~(CMD_MASK | LEN_MASK)) | (CMD_E | 2 );
 	} else {
 		switch ( (cmd = getCmd( h )) ) {
