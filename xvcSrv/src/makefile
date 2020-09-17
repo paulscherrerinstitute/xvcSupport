@@ -51,6 +51,8 @@ DRVOBJS += xvcDrvAxisTmem.o
 endif
 endif
 
+-include defs.local.mk
+
 all: xvcSrv $(DRIVERS)
 
 $(OBJS): xvcDriver.h xvcSrv.h
@@ -71,3 +73,5 @@ xvcDrvAxisTmem.o: xvcDrvAxisTmem.cc xvcDrvAxisTmem.h xvcDriver.h
 
 clean:
 	$(RM) xvcSrv $(DRIVERS) $(OBJS) $(DRVOBJS)
+
+-include rules.local.mk
