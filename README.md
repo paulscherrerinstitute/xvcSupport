@@ -80,6 +80,8 @@ A whole stack of soft- and firmware components are involved:
      - UDP communication (SLAC proprietary protocol stack)
      - FIFO with AXILite interface for ZYNQ
      - FIFO with TMEM interface for PSI's IFC board
+     - Xilinx Vivado AXI Debug Bridge IP (you can create one of these
+       in vivado).
 
    It is fairly straight-forward to implement your own driver module
    for your specific firmware-interface if necessary. Example/skeleton

@@ -30,7 +30,7 @@ USR_CPPFLAGS=
 #
 # so that $(CROSS)$(CXX) points to a valid cross compiler
 #
-DRIVERS += drvAxilFifo.so
+DRIVERS += drvAxilFifo.so drvAxiDbgBridgeIP.so
 
 OBJS=xvcSrv.o xvcDrvLoopBack.o xvcConn.o xvcDrvUdp.o jtagDump.o
 
@@ -64,6 +64,9 @@ $(OBJS) $(DRVOBJS): %.o: %.cc
 	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $< -I. $(TOSCAINC) -O2 -c
 
 drvAxilFifo.so: xvcDrvAxisFifo.cc xvcDriver.h xvcDrvAxisFifo.h
+	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. -O2 -o $@ $<
+
+drvAxiDbgBridgeIP.so: xvcDrvAxiDbgBridgeIP.cc xvcDriver.h xvcDrvAxiDbgBridgeIP.h
 	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. -O2 -o $@ $<
 
 drvTmemFifo.so: xvcDrvAxisTmem.cc xvcDrvAxisTmem.h xvcDriver.h
