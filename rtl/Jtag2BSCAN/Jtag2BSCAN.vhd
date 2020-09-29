@@ -28,7 +28,9 @@ entity Jtag2BSCAN is
     SHIFT          : out std_logic;
     UPDATE         : out std_logic;
     RESET          : out std_logic;
-    TDI            : out std_logic
+    TDI            : out std_logic;
+    UPDATE_SEL     : out std_logic;
+    DRCK_SEL       : out std_logic
   );
 end entity Jtag2BSCAN;
 
@@ -48,23 +50,28 @@ architecture Impl of Jtag2BSCAN is
   signal shiftDRLoc        : std_logic;
   signal updateDRLoc       : std_logic;
 
+  signal selUSERTap        : std_logic;
   signal selUSERLoc        : std_logic;
   signal tapTdoLoc         : std_logic;
 
   type RegType is record
-    tdo       : std_logic;
-    captureDR : std_logic;
-    shiftDR   : std_logic;
-    updateDR  : std_logic;
-    drckGate  : std_logic;
+    tdo        : std_logic;
+    captureDR  : std_logic;
+    shiftDR    : std_logic;
+    updateDR   : std_logic;
+    selUSER    : std_logic;
+    selUSERLst : std_logic;
+    drckSel    : std_logic;
   end record RegType;
 
   constant REG_INIT_C : RegType := (
-    tdo       => '0',
-    captureDR => '0',
-    shiftDR   => '0',
-    updateDR  => '0',
-    drckGate  => '1'
+    tdo        => '0',
+    captureDR  => '0',
+    shiftDR    => '0',
+    updateDR   => '0',
+    selUSER    => '0',
+    selUSERLst => '0',
+    drckSel    => '0'
   );
 
   signal r, rin : RegType := REG_INIT_C;
@@ -117,11 +124,11 @@ begin
       captureDR      => captureDRLoc,
       shiftDR        => shiftDRLoc,
       tdo            => tapTdoLoc,
-      selUSER        => selUSERLoc,
+      selUSER        => selUSERTap,
       selBYPASS      => open
     );
- 
-  P_COMB : process (r, tapTdoLoc, selUSERLoc, TDO, captureDRLoc, shiftDRLoc, updateDRLoc, shiftIRLoc) is
+
+  P_COMB : process (r, tapTdoLoc, selUSERTap, TDO, captureDRLoc, shiftDRLoc, updateDRLoc, shiftIRLoc, updateIRLoc, testLogicResetLoc) is
     variable v  : RegType;
     variable OE : std_logic;
   begin
@@ -131,19 +138,31 @@ begin
     -- However, this never happens anywhere close to the
     -- shifting state when TDO matters. Thus, the extra
     -- clock cycle delay may be ignored...
-    if ( selUSERLoc = '1' and shiftIRLoc = '0' ) then
+    if ( r.selUSERLst = '1' and shiftIRLoc = '0' ) then
       v.tdo     := TDO;
     else
       v.tdo     := tapTdoLoc;
+    end if;
+
+    -- BSCANE2 asserts SEL only when USER2 is captured the first time;
+    -- if captured again (while not changing IR contents in between)
+    -- SEL is deasserted!)
+    if ( testLogicResetLoc = '1' ) then
+      v.selUSER    := '0';
+      v.selUSERLst := '0';
+    elsif ( updateIRLoc = '1' ) then
+      v.selUSERLst := selUSERTap;
+      v.selUSER    := selUSERTap and not r.SelUSERLst;
     end if;
     v.tdo       := v.tdo or not OE;
     v.captureDR := captureDRLoc;
     v.shiftDR   := shiftDRLoc;
     v.updateDR  := updateDRLoc;
-    v.drckGate  := (not captureDRLoc and not shiftDRLoc);
+    v.drckSel   := (captureDRLoc or shiftDRLoc) and v.selUSER;
     rin <= v;
   end process P_COMB;
 
+  selUSERLoc <= r.selUSER and not testLogicResetLoc;
 
   P_SEQ : process ( JTCK ) is
   begin
@@ -163,7 +182,7 @@ begin
   -- because ICON seems to use UPDATE as a clock and any combinatorial
   -- input seems to be treated as a different input clock (which we'd have
   -- to constrain...)
-  UPDATE  <= r.updateDR; -- and updateDRLoc;
+  UPDATE  <= r.updateDR and updateDRLoc;
   SEL     <= selUSERLoc;
   RESET   <= testLogicResetLoc;
   TDI     <= JTDI;
@@ -186,5 +205,8 @@ begin
   --        to never switch concurrently with captureDRLoc, shiftDRLoc and thus
   --        there is no chance for glitches.
 
-  DRCK    <= (JTCK or r.drckGate ) and selUSERLoc;
+  DRCK_SEL   <= r.drckSel;
+  DRCK       <= (JTCK and r.drckSel ) or (not r.drckSel and selUSERLoc);
+
+  UPDATE_SEL <= updateDRLoc;
 end architecture Impl;

@@ -149,10 +149,9 @@ begin
   end process P_SEQ_P;
 
 
-  selBYPASS <= rn.selBypass;
-  selUSER   <= rn.selUser;
-
-  -- tdo must still be registered on falling edge
+  -- output signals must still be registered on falling edge by the user
+  selBYPASS <= rnin.selBypass;
+  selUSER   <= rnin.selUser;
   tdo       <= rp.shift_ir(0) when shiftIR = '1' else rp.shift_dr(0);
 
 end architecture Impl;

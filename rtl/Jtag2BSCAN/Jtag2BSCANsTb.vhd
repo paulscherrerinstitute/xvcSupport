@@ -15,11 +15,14 @@ architecture rtl of Jtag2BSCANsTb is
   signal clk                    : std_logic := '0';
   signal run                    : boolean   := true;
 
+  constant USE_BUFG             : boolean   := true;
+
   constant CLK_DIV2_C     : natural := 2;
 
   constant PART_NAME_C    : string                                     := "lx130t";
 
-  constant SAMPLETIME     : time := 10 ns;
+  constant SAMPLETIME     : time := 20 ns;
+  constant HALFPERIOD     : time := 30 ns;
 
   constant IR_LENGTH_C    : natural                                    := 10;
   constant REG_IDCODE_C   : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111001001"; -- must be of IR_LENGTH_C
@@ -119,6 +122,10 @@ architecture rtl of Jtag2BSCANsTb is
   signal UPDATE , UPDATE_CMP    : std_logic;
   signal RESET  , RESET_CMP     : std_logic;
   signal TDI    , TDI_CMP       : std_logic;
+  signal DRCK_SEL               : std_logic;
+  signal DRCK_LOC               : std_logic;
+  signal UPDATE_LOC             : std_logic;
+  signal UPDATE_SEL             : std_logic;
 
   signal TDO                    : std_logic := '0';
 
@@ -130,7 +137,7 @@ begin
   P_CLK : process is
     procedure tick is
     begin
-      wait for 30 ns;
+      wait for HALFPERIOD;
       clk <= not clk;
     end procedure tick;
   begin
@@ -142,7 +149,7 @@ begin
 
   P_TGL : process (jtck) is
   begin
-    if (falling_edge(jtck)) then
+    if (rising_edge(jtck)) then
       togl <= not togl;
     end if;
   end process P_TGL;
@@ -208,6 +215,9 @@ begin
       end if;
       if ( DRCK /= DRCK_CMP ) then
         report "DRCK mismatch" severity failure;
+      end if;
+      if ( (jtdocmp /= 'Z') and (jtdo /= jtdocmp) ) then
+        report "TDO mismatch" severity failure;
       end if;
       report "OUT "
          & std_logic'image(jtck)
@@ -276,13 +286,62 @@ begin
 
       TDO            => TDO,
       SEL            => SEL,
-      DRCK           => DRCK,
+      DRCK           => DRCK_LOC,
+      DRCK_SEL       => DRCK_SEL,
       CAPTURE        => CAPTURE,
       SHIFT          => SHIFT,
-      UPDATE         => UPDATE,
+      UPDATE         => UPDATE_LOC,
+      UPDATE_SEL     => UPDATE_SEL,
       RESET          => RESET,
       TDI            => TDI
     );
+
+  GEN_BUFG : if USE_BUFG generate
+
+  signal DRCK_SELB : std_logic;
+  signal UPDT_SELB : std_logic;
+  signal jtckB     : std_logic;
+
+  begin
+
+  DRCK_SELB <= not DRCK_SEL;
+  UPDT_SELB <= not UPDATE_SEL;
+
+  jtckB     <= not jtck;
+
+
+  U_BUFGCTRL_DRCK : BUFGCTRL
+    port map (
+      IGNORE0        => '1',
+      IGNORE1        => '1',
+      I0             => SEL,
+      I1             => jtck,
+      CE0            => '1',
+      CE1            => '1',
+      S0             => DRCK_SELB,
+      S1             => DRCK_SEL,
+      O              => DRCK
+    );
+
+  U_BUFGCTRL_UPDT : BUFGCTRL
+    port map (
+      IGNORE0        => '1',
+      IGNORE1        => '1',
+      I0             => '0',
+      I1             => jtckB,
+      CE0            => '1',
+      CE1            => '1',
+      S0             => UPDT_SELB,
+      S1             => UPDATE_SEL,
+      O              => UPDATE
+    );
+  end generate;
+
+  GEN_NO_BUFG : if not USE_BUFG generate
+    DRCK   <= DRCK_LOC;
+    UPDATE <= UPDATE_LOC;
+  end generate;
+
 
   U_CMP_TAP : JTAG_SIM_VIRTEX6
     generic map (
