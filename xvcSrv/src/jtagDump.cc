@@ -26,11 +26,12 @@ void
 JtagRegType::print(FILE *f) const
 {
 	VType::const_reverse_iterator it = v_.rbegin();
+	fprintf(f, "0x");
 	if ( bitpos_ > 0 ) {
-		fprintf(f,"0x%llx",(unsigned long long) *it);
+		fprintf(f,"%llx",(unsigned long long) *it);
 	}
-	while ( --it != v_.rend() ) {
-		fprintf(f,"%16llx", (unsigned long long) *it);
+	while ( ++it != v_.rend() ) {
+		fprintf(f,"%016llx", (unsigned long long) *it);
 	}
 }
 
@@ -125,8 +126,11 @@ void
 JtagState_UpdateDR::advance(JtagDumpCtx *context, int tms, int tdo, int tdi)
 {
 unsigned    bits = context->getDRLen();
-const char *mrk  = bits > sizeof(JtagRegType)*8 ? "*" : "";
-	fprintf(stderr, "%s: DR[IR = %llx] sent: 0x%s%llx, recv: 0x%s%llx (total %d bits)\n", getName(), context->getIRo(), mrk, context->getDRo(), mrk, context->getDRi(), bits);
+	fprintf(stderr, "%s: DR[IR = ", getName());
+	context->getIRo()->print( stderr );
+	fprintf(stderr, "], nbits: %lu\n", bits);
+	fprintf(stderr, "  sent: "); context->getDRo()->print( stderr ); fprintf(stderr,"\n");
+	fprintf(stderr, "  rcvd: "); context->getDRi()->print( stderr ); fprintf(stderr,"\n");
 	if ( tms ) {
 		context->changeState( &context->state_SelectDRScan_ );
 	} else {
@@ -196,8 +200,11 @@ void
 JtagState_UpdateIR::advance(JtagDumpCtx *context, int tms, int tdo, int tdi)
 {
 unsigned    bits = context->getIRLen();
-const char *mrk  = bits > sizeof(JtagRegType)*8 ? "*" : "";
-	fprintf(stderr, "%s: IR sent: 0x%llx%s, recv: 0x%s%llx (total %d bits)\n", getName(), context->getIRo(), mrk, mrk, context->getIRi(), bits);
+	fprintf(stderr, "%s: IR sent: ", getName());
+	context->getIRo()->print( stderr );
+	fprintf(stderr, ", recv: ");
+	context->getIRi()->print( stderr );
+	fprintf(stderr, " (nbits: %lu)\n", bits);
 	if ( tms ) {
 		context->changeState( &context->state_SelectDRScan_ );
 	} else {
@@ -294,22 +301,24 @@ fprintf(stderr, "A(%d)\n", !!tms);
 	state_->advance(this, tms, tdo, tdi);
 }
 
-void
-JtagDumpCtx::processBuf(int nbits, unsigned char *tmsb, unsigned char *tdob, unsigned char *tdib)
+unsigned
+JtagDumpCtx::processBuf(int nbits, unsigned char *tmsb, unsigned char *tdob, unsigned char *tdib, const JtagState *until)
 {
 unsigned n,m;
 
 	while ( nbits > 0 ) {
 		n = 1 << ( nbits < 8 ? nbits : 8 );
 		for ( m = 1; m < n; m <<= 1 ) {
+			if ( until && ( *state_ == *until ) ) {
+				return nbits;
+			} 
 			advance( ((*tmsb) & m), ((*tdob) & m), ((*tdib) & m) );
+			nbits--;
 		}
 
 		tmsb++;
 		tdob++;
 		tdib++;
-		
-		nbits -= 8;
 	}
-
+	return 0;
 }

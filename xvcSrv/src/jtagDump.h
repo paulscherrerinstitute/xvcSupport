@@ -46,6 +46,7 @@ public:
 	}
 	virtual void advance(JtagDumpCtx *context, int tms, int tdo, int tdi);
 };
+
 class JtagState_RunTestIdle : public JtagState {
 public:
 	virtual const char *getName() const
@@ -226,11 +227,9 @@ public:
 
 	void advance(int tms, int tdo, int tdi);
 
-	void processBuf(int nbits, unsigned char *tmsb, unsigned char *tdob, unsigned char *tdib);
+	unsigned processBuf(int nbits, unsigned char *tmsb, unsigned char *tdob, unsigned char *tdib, const JtagState *until = 0);
 
-	unsigned processBuf(int nbits, unsigned char *tmsb, unsigned char *tdob, unsigned char *tdib, JtagState *until);
-
-	void printCurrentState();
+	const JtagState *getCurrentState() { return state_; }
 };
 
 #endif
