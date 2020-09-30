@@ -10,8 +10,10 @@ use unisim.vcomponents.all;
 
 entity Tmem2BSCANWrapper is
   generic (
-    DEVICE_G    : string := "VIRTEX6";
-    TMEM_CS_G   : std_logic_vector(1 downto 0) := "00" -- CS to which the block responds
+    DEVICE_G    : string  := "VIRTEX6";
+    TMEM_CS_G   : std_logic_vector(1 downto 0) := "00"; -- CS to which the block responds
+    USE_BUFS_G  : natural := 1;
+    USE_AXIS_G  : boolean := false
   );
   port (
     clk         : in  sl;
@@ -87,15 +89,29 @@ begin
     attribute KEEP of bscn_sel: signal is "TRUE";
     attribute KEEP of bscn_dck: signal is "TRUE";
 
-    signal countr : unsigned(7 downto 0) := x"00";
-    signal ila    : std_logic_vector(19 downto 0);
+    signal drck_loc           : std_logic;
+    signal updt_loc           : std_logic;
+    signal drck_sel           : std_logic;
+    signal updt_sel           : std_logic;
+
+    signal auxIn              : std_logic_vector(127 downto 0) := (others => '0');
+    signal auxOut             : std_logic_vector(127 downto 0);
+
+    signal serDesInRdy        : std_logic;
+    signal serDesInVal        : std_logic;
+
+    signal serDesOutVal       : std_logic;
+    signal tdoVal             : std_logic_vector( 31 downto 0);
+
+    signal numBits            : natural range 0 to 8*W_C - 1;
 
   begin
 
   U_TmemIf : entity work.Axis2TmemFifo
     generic map (
       DEVICE_G      => DEVICE_G,
-      TMEM_CS_G     => TMEM_CS_G
+      TMEM_CS_G     => TMEM_CS_G,
+      AUX_RO_M_G    => x"ffffffff_fffffee0_00000000_00000000"
     )
     port map (
       clk           => clk,
@@ -117,9 +133,61 @@ begin
       tmemBUSY      => tmemBUSY,
       tmemPIPE      => tmemPIPE,
 
+      auxIn         => auxOut,
+      auxOut        => auxIn,
+
       irq           => irq
     );
 
+   G_SERDES : if ( not USE_AXIS_G ) generate
+
+   auxOut(68 downto  0) <= auxIn(68 downto 0);
+   auxOut(71 downto 69) <= (others => '0');
+
+   serDesInVal          <= auxIn(72);
+   auxOut(72)           <= serDesInVal and not serDesInRdy;
+   auxOut(73)           <= serDesInVal or (auxIn(73) and not serDesOutVal);
+   auxOut(95 downto 74) <= (others => '0');
+
+   P_tdoVal : process ( serDesOutVal, tdoVal ) is
+   begin
+      if ( serDesOutVal = '1' ) then
+        auxOut(127 downto 96) <= tdoVal;
+      else 
+        auxOut(127 downto 96) <= auxIn(127 downto 96);
+      end if;
+   end process P_tdoVal;
+
+   numBits <= to_integer(unsigned(auxIn(68 downto 64)));
+
+   U_JtagSerDes : entity work.JtagSerDesCore
+    generic map (
+      WIDTH_G       => (8*W_C),
+      CLK_DIV2_G    => 5
+    )
+    port map (
+      clk           => clk,
+      rst           => rst,
+
+      numBits       => numBits,
+      dataInTms     => auxIn(31 downto  0),
+      dataInTdi     => auxIn(63 downto 32),
+      dataInValid   => serDesInVal,
+      dataInReady   => serDesInRdy,
+
+      dataOut       => tdoVal,
+      dataOutValid  => serDesOutVal,
+      dataOutReady  => '1',
+
+      tck           => tck_in,
+      tms           => tms,
+      tdi           => tdi,
+      tdo           => tdo
+    );
+
+   end generate G_SERDES;
+
+   G_AXIS2JTAG : if ( USE_AXIS_G ) generate
    U_Jtag : entity work.AxisToJtag
     generic map (
        AXIS_WIDTH_G => W_C,
@@ -142,8 +210,64 @@ begin
       tdi           => tdi,
       tdo           => tdo
     );
+  end generate G_AXIS2JTAG;
 
-  U_TCK_BUF : BUFG port map( I => tck_in, O => tck );
+  GEN_NO_TCK_BUF : if ( USE_BUFS_G < 1 ) generate
+    tck <= tck_in;
+  end generate GEN_NO_TCK_BUF;
+
+  GEN_NO_DCK_UPD_BUFS : if ( USE_BUFS_G < 2 ) generate
+    bscn_upd <= updt_loc;
+    bscn_dck <= drck_loc;
+  end generate GEN_NO_DCK_UPD_BUFS;
+
+  GEN_TCK_BUF : if ( USE_BUFS_G >= 1 ) generate
+
+    U_TCK_BUF  : BUFG
+      port map (
+        I => tck_in,
+        O => tck
+      );
+
+  end generate GEN_TCK_BUF;
+
+  GEN_DCK_UPD_BUFS : if ( USE_BUFS_G >= 2 ) generate
+    signal drck_sel_b         : std_logic;
+    signal updt_sel_b         : std_logic;
+    signal tck_in_b           : std_logic;
+  begin
+
+    tck_in_b   <= not tck_in;
+    drck_sel_b <= not drck_sel;
+    updt_sel_b <= not updt_sel;
+  
+    U_DRCK_BUF : BUFGCTRL
+      port map (
+        IGNORE0        => '1',
+        IGNORE1        => '1',
+        I0             => bscn_sel,
+        I1             => tck_in,
+        CE0            => '1',
+        CE1            => '1',
+        S0             => drck_sel_b,
+        S1             => drck_sel,
+        O              => bscn_dck
+      );
+  
+    U_UPDT_BUF : BUFGCTRL
+      port map (
+        IGNORE0        => '1',
+        IGNORE1        => '1',
+        I0             => '0',
+        I1             => tck_in_b,
+        CE0            => '1',
+        CE1            => '1',
+        S0             => updt_sel_b,
+        S1             => updt_sel,
+        O              => bscn_upd
+      );
+
+  end generate GEN_DCK_UPD_BUFS;
 
   U_Bscan1 : entity work.Jtag2Bscan
     generic map (
@@ -162,8 +286,10 @@ begin
       
       TDO           => bscn_tdo,
       SEL           => bscn_sel,
-      DRCK          => bscn_dck,
-      UPDATE        => bscn_upd,
+      DRCK          => drck_loc,
+      DRCK_SEL      => drck_sel,
+      UPDATE        => updt_loc,
+      UPDATE_SEL    => updt_sel,
       SHIFT         => bscn_shf,
       RESET         => bscn_rst,
       TDI           => bscn_tdi,

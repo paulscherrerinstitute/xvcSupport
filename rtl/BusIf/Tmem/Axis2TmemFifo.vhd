@@ -37,17 +37,21 @@ use unimacro.vcomponents.all;
 --                              by TMEM interface).
 --     FIFO_CS_REG(23)   (RW) : hold the block in RESET while asserted.
 --     FIFO_CS_REG(27:24)(RO) : FIFO depth in kBytes.
+--     FIFO_AU_REG(31: 0)(RW) : Aux RW reg
+--     FIFO_AU_REG(63:32)(RO) : Aux RO reg
 
 entity Axis2TmemFifo is
   generic (
     DEVICE_G    : string := "VIRTEX6";
-    TMEM_CS_G   : std_logic_vector(1 downto 0) := "00" -- CS to which the block responds
+    TMEM_CS_G   : std_logic_vector(  1 downto 0) := "00"; -- CS to which the block responds
+    AUX_INIT_G  : std_logic_vector(127 downto 0) := (others => '0');
+    AUX_RO_M_G  : std_logic_vector(127 downto 0) := (others => '0')
   );
   port (
     clk         : in  sl;
     rst         : in  sl;
 
-    axisInpPri  : in  AxiStreamMasterType; -- incoming stream
+    axisInpPri  : in  AxiStreamMasterType := AXI_STREAM_MASTER_INIT_C; -- incoming stream
     axisInpSub  : out AxiStreamSlaveType;
 
     axisOutPri  : out AxiStreamMasterType; -- outgoing stream
@@ -62,6 +66,9 @@ entity Axis2TmemFifo is
     tmemDATR    : out slv(63 downto 0);
     tmemBUSY    : out sl;
     tmemPIPE    : out slv( 1 downto 0);
+
+    auxIn       : in  slv(127 downto 0) := AUX_INIT_G;
+    auxOut      : out slv(127 downto 0);
 
     irq         : out sl
   );
@@ -83,6 +90,8 @@ architecture Impl of Axis2TmemFifo is
 
   constant FIFO_RW_REG_C: natural := 0;
   constant FIFO_CS_REG_C: natural := 1;
+  constant FIFO_A1_REG_C: natural := 2;
+  constant FIFO_A2_REG_C: natural := 3;
 
   signal   fifoInpDI             : std_logic_vector(DATA_WIDTH_C - 1 downto 0);
   signal   fifoInpDO             : std_logic_vector(DATA_WIDTH_C - 1 downto 0);
@@ -98,6 +107,7 @@ architecture Impl of Axis2TmemFifo is
   signal   tmemDATRLoc           : std_logic_vector(63 downto 0);
   signal   wcntReg               : unsigned(15 downto 0) := (others => '0');
   signal   wcntCnt               : unsigned(15 downto 0) := (others => '0');
+  signal   auxReg                : std_logic_vector(127 downto 0) := AUX_INIT_G;
 
   signal   fifoUsrRst            : std_logic := '0';
   signal   usrRstSeq             : unsigned(2 downto 0) := (others => '0');
@@ -112,8 +122,8 @@ architecture Impl of Axis2TmemFifo is
   signal   fifoOutLast           : std_logic;
   signal   fifoOutValid          : std_logic;
   signal   fifoOutOwnerAXIS      : std_logic := '0';
-  signal   fifoRegSel            : std_logic_vector( 1 downto 0);
-  signal   fifoRegSelDly         : std_logic_vector( 1 downto 0);
+  signal   fifoRegSel            : std_logic_vector( 3 downto 0);
+  signal   fifoRegSelDly         : std_logic_vector( 3 downto 0);
   signal   statusReg             : std_logic_vector(23 downto 0);
 
   -- unused; ghdl demands connection of unconstrained vectors
@@ -214,6 +224,7 @@ begin
 
   -- state machine
   P_SEQ : process ( clk ) is
+    variable t, f: natural;
   begin
     if ( rising_edge( clk ) ) then
       if ( aRst = '1' ) then
@@ -224,6 +235,7 @@ begin
         fifoOutValid     <= '0';
         fifoInpIrqEna    <= '0';
         fifoOutIrqEna    <= '0';
+        auxReg           <= AUX_INIT_G;
         fifoRegSelDly    <= (others => '0');
         statusReg        <= (others => '0');
       else
@@ -262,6 +274,29 @@ begin
           fifoInpIrqEna <= tmemDATW(19);
         end if;
 
+        auxReg <= auxIn;
+
+        if ( fifoRegSel(2) = '1' ) then 
+          for i in tmemWE'right to tmemWE'left loop
+            f := 8*i;
+            t := f+7;
+            if ( tmemWE(i) = '1' ) then
+              auxReg(t downto f) <=    (tmemDATW(t -  0 downto f -  0) and not AUX_RO_M_G(t downto f))
+                                    or (auxIn   (t      downto f     ) and     AUX_RO_M_G(t downto f));
+            end if;
+          end loop;
+        end if;
+
+        if ( fifoRegSel(3) = '1' ) then 
+          for i in tmemWE'right to tmemWE'left loop
+            f := 8*i + 64;
+            t := f+7;
+            if ( tmemWE(i) = '1' ) then
+              auxReg(t downto f) <=    (tmemDATW(t - 64 downto f - 64) and not AUX_RO_M_G(t downto f))
+                                    or (auxIn   (t      downto f     ) and     AUX_RO_M_G(t downto f));
+            end if;
+          end loop;
+        end if;
 
         -- outgoing stream takes over frame ownership
         if ( (fifoOutValid and axisOutSub.tReady and fifoOutEmpty) = '1' ) then
@@ -290,10 +325,12 @@ begin
   P_DATR_MUX : process (fifoRegSelDly, fifoInpDO, statusReg) is
   begin
     tmemDATRLoc <= (others => '0');
-    case ( fifoRegSelDly(1 downto 0) ) is
-      when "01"   => tmemDATRLoc                                    <= x"6666_aaaa"  & fifoInpDO;
-      when "10"   => tmemDATRLoc( 16 + wcntReg'length - 1 downto 0) <= (x"0" & slv(DEPTH_KB_C) &  statusReg );
-      when others => tmemDATRLoc <= x"affecafe" & x"5555aaaa";
+    case ( fifoRegSelDly ) is
+      when "0001"   => tmemDATRLoc                                    <= x"6666_aaaa"  & fifoInpDO;
+      when "0010"   => tmemDATRLoc( 16 + wcntReg'length - 1 downto 0) <= (x"0" & slv(DEPTH_KB_C) &  statusReg );
+      when "0100"   => tmemDATRLoc                                    <= auxReg( 63 downto  0);
+      when "1000"   => tmemDATRLoc                                    <= auxReg(127 downto 64);
+      when others  => tmemDATRLoc <= x"affecafe" & x"5555aaaa";
     end case;
   end process P_DATR_MUX;
 
@@ -305,6 +342,8 @@ begin
       case ( to_integer( unsigned( tmemADD(12 downto tmemAdd'right) ) ) ) is
         when FIFO_RW_REG_C => fifoRegSel(0) <= '1';
         when FIFO_CS_REG_C => fifoRegSel(1) <= '1';
+        when FIFO_A1_REG_C => fifoRegSel(2) <= '1';
+        when FIFO_A2_REG_C => fifoRegSel(3) <= '1';
         when others        =>
       end case;
     end if;
@@ -397,5 +436,6 @@ begin
 
   irq        <= fifoInpIrq or fifoOutIrq;
 
-end architecture Impl;
+  auxOut     <= auxReg;
 
+end architecture Impl;
