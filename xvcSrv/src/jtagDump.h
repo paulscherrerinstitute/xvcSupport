@@ -1,19 +1,46 @@
 #ifndef JTAG_DUMP_H
 #define JTAG_DUMP_H
 
-typedef unsigned long long JtagRegType;
+#include <vector>
+#include <stdio.h>
+#include <stdint.h>
+
+class JtagRegType {
+private:
+  int bitpos_;
+
+  typedef std::vector<uint64_t> VType;
+
+  VType v_;
+
+public:
+  JtagRegType();
+
+  void addBit(int i);
+
+  unsigned getNumBits() const;
+
+  void clear();
+
+  void print(FILE *f) const;
+};
 
 class JtagDumpCtx;
 
 class JtagState {
 public:
-	virtual const char *getName()                                = 0;
+	virtual const char *getName() const                                   = 0;
 	virtual void advance(JtagDumpCtx *context, int tms, int tdo, int tdi) = 0;
+
+	virtual int operator==(const JtagState &other) const
+	{
+		return this->getName() == other.getName();
+	}
 };
 
 class JtagState_TestLogicReset : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "TestLogicReset";
 	}
@@ -21,7 +48,7 @@ public:
 };
 class JtagState_RunTestIdle : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "RunTestIdle";
 	}
@@ -30,7 +57,7 @@ public:
 
 class JtagState_SelectDRScan : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "SelectDRScan";
 	}
@@ -39,7 +66,7 @@ public:
 
 class JtagState_CaptureDR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "CaptureDR";
 	}
@@ -48,7 +75,7 @@ public:
 
 class JtagState_ShiftDR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "ShiftDR";
 	}
@@ -57,7 +84,7 @@ public:
 
 class JtagState_Exit1DR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "Exit1DR";
 	}
@@ -66,7 +93,7 @@ public:
 
 class JtagState_PauseDR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "PauseDR";
 	}
@@ -75,7 +102,7 @@ public:
 
 class JtagState_Exit2DR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "Exit2DR";
 	}
@@ -84,7 +111,7 @@ public:
 
 class JtagState_UpdateDR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "UpdateDR";
 	}
@@ -93,7 +120,7 @@ public:
 
 class JtagState_SelectIRScan : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "SelectIRScan";
 	}
@@ -102,7 +129,7 @@ public:
 
 class JtagState_CaptureIR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "CaptureIR";
 	}
@@ -111,7 +138,7 @@ public:
 
 class JtagState_ShiftIR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "ShiftIR";
 	}
@@ -120,16 +147,17 @@ public:
 
 class JtagState_Exit1IR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "Exit1IR";
 	}
 	virtual void advance(JtagDumpCtx *context, int tms, int tdo, int tdi);
+
 };
 
 class JtagState_PauseIR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "PauseIR";
 	}
@@ -138,7 +166,7 @@ public:
 
 class JtagState_Exit2IR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "Exit2IR";
 	}
@@ -147,7 +175,7 @@ public:
 
 class JtagState_UpdateIR : public JtagState {
 public:
-	virtual const char *getName()
+	virtual const char *getName() const
 	{
 		return "UpdateIR";
 	}
@@ -159,7 +187,6 @@ class JtagDumpCtx {
 private:
 	unsigned    irl_, drl_;
 	JtagRegType iri_,dri_;
-	JtagRegType irm_,drm_;
 	JtagRegType iro_,dro_;
 	JtagState  *state_;
 
@@ -187,10 +214,10 @@ public:
 	void clearIR();
 	void shiftDR(int tdo, int tdi);
 	void shiftIR(int tdo, int tdi);
-	JtagRegType getDRi();
-	JtagRegType getIRi();
-	JtagRegType getDRo();
-	JtagRegType getIRo();
+	const JtagRegType *getDRi();
+	const JtagRegType *getIRi();
+	const JtagRegType *getDRo();
+	const JtagRegType *getIRo();
 
 	unsigned getDRLen();
 	unsigned getIRLen();
@@ -200,6 +227,10 @@ public:
 	void advance(int tms, int tdo, int tdi);
 
 	void processBuf(int nbits, unsigned char *tmsb, unsigned char *tdob, unsigned char *tdib);
+
+	unsigned processBuf(int nbits, unsigned char *tmsb, unsigned char *tdob, unsigned char *tdib, JtagState *until);
+
+	void printCurrentState();
 };
 
 #endif

@@ -21,10 +21,18 @@ private:
     static const int SDES_CSR_IDX   = 6;
     static const int SDES_TDO_IDX   = 7;
 
-	static const uint32_t CSR_RUN       = 0x00000200;
-    static const uint32_t CSR_LEN_SHIFT = 0;
+    static const uint32_t FIFO_CSR_VERSM =  0xf0000000;
+    static const uint32_t FIFO_CSR_VERSS =  28;
 
-	unsigned long     maxVec_;
+    static const uint32_t SUPPORTED_VERS = 0;
+    static const uint32_t MAGIC          = 0x6666aaaa;
+
+
+    static const uint32_t SDES_CSR_RUN   = 0x00000100;
+    static const uint32_t SDES_CSR_BSY   = 0x00000200;
+    static const uint32_t SDES_CSR_LENS  = 0;
+
+    unsigned long     maxVec_;
     unsigned          wrdSiz_;
 
     unsigned          toscaSpace_;

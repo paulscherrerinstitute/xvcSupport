@@ -8,6 +8,8 @@
 
 #include <xvcDrvSerDesTmem.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <toscaApi.h>
 
 JtagDriverSerDesTmem::JtagDriverSerDesTmem(int argc, char *const argv[], const char *devnam)
 : JtagDriverAxisToJtag( argc, argv       ),
@@ -19,7 +21,7 @@ JtagDriverSerDesTmem::JtagDriverSerDesTmem(int argc, char *const argv[], const c
 {
 uint32_t      csrVal;
 unsigned long maxBytes;
-unsigned long maxWords;
+unsigned long maxWords = 512;
 int           opt;
 const char   *basp;
 char         *endp;
@@ -56,37 +58,11 @@ const char   *irqfn = 0;
 
 	wrdSiz_ = 4;
 
-	maxWords = (((csrVal & FIFO_CSR_MAXWM) >> FIFO_CSR_MAXWS) << 10 ) / wrdSiz_;
-
 	// one header word; two vectors must fit
 	maxBytes = (maxWords - 1) * wrdSiz_;
 
 	maxVec_ = maxBytes/2;
 
-}
-
-{
-unsigned long maxBytes = 1024; /* arbitrary; could support an option to change this */
-int           opt;
-
-	while ( (opt = getopt(argc, argv, "M:")) > 0 ) {
-		switch ( opt ) {
-			case 'M':
-				if ( 1 != sscanf(optarg, "%li", &maxBytes) ) {
-					fprintf( stderr,"Error: Unable to scan value for option -%c\n", opt);
-					throw std::runtime_error("Invalid scan driver option value");
-				}
-			break;
-			default:
-				fprintf( stderr,"Unknown driver option -%c\n", opt );
-				throw std::runtime_error("Unknown driver option");
-		}
-	}
-
-	reset();
-
-	wrdSiz_ = 4;
-    maxVec_ = maxBytes;
 }
 
 JtagDriverSerDesTmem::~JtagDriverSerDesTmem()
@@ -99,13 +75,13 @@ JtagDriverSerDesTmem::o32(unsigned idx, uint32_t v)
 	if ( getDebug() > 2 ) {
 		fprintf(stderr, "r[%d]:=0x%08x\n", idx, v);
 	}
-	map_.wr(idx, v);
+	toscaWrite( toscaSpace_, toscaBase_ + (idx<<2), v );
 }
 
 uint32_t
 JtagDriverSerDesTmem::i32(unsigned idx)
 {
-	uint32_t v = map_.rd(idx);
+	uint32_t v = toscaRead( toscaSpace_, toscaBase_ + (idx << 2) );
 	if ( getDebug() > 2 ) {
 		fprintf(stderr, "r[%d]=>0x%08x\n", idx, v);
 	}
@@ -149,7 +125,7 @@ Header   hdr;
 unsigned nbits, l, lb;
 uint8_t  *pi, *po;
 int      min;
-uint32_t w;
+uint32_t w, csr;
 unsigned nbytes;
 unsigned nwords;
 unsigned wsz = hsize;
@@ -192,7 +168,7 @@ printf("%08x\n", (unsigned long)hdr);
 
 	nbits  = getLen( hdr );
 	nbytes = (nbits + 7)/8;
-    nwords = (nbytes + wsz - 1)/wsz;
+	nwords = (nbytes + wsz - 1)/wsz;
 
 	if ( txBytes < nwords * 2 * wsz ) {
 		throw std::runtime_error("AXI-DebugBridge IP: not enough input data");
@@ -207,33 +183,33 @@ printf("%08x\n", (unsigned long)hdr);
 
 	lb = sizeof(w);
 	l  = 8*lb;
-	o32( LENGTH_IDX, l);
+
+	csr = (l - 1) << SDES_CSR_LENS;
 
 	while ( nbits > 0 ) {
 
 		w = getw32( pi ); pi += sizeof(w);
-		o32( TMSVEC_IDX, w );
+		o32( SDES_TMS_IDX, w );
 		w = getw32( pi ); pi += sizeof(w);
-		o32( TDIVEC_IDX, w );
+		o32( SDES_TDI_IDX, w );
 		if (nbits < 8*sizeof(w)) {
-			l = nbits;
-			o32( LENGTH_IDX, l );
-			lb = (l + 7)/8;
+			l   = nbits;
+			csr = (l - 1) << SDES_CSR_LENS;
+			lb  = (l + 7)/8;
 		}
-		w = i32( CSR_IDX );
-		w |= CSR_RUN;
-		o32( CSR_IDX, w );
+		o32( SDES_CSR_IDX, csr | SDES_CSR_RUN );
 
 		if ( measure_ ) {
 			doSleep_ = false;
 			clock_gettime( CLOCK_MONOTONIC, &then );
 		}
 
-		while ( i32(CSR_IDX) & CSR_RUN ) {
+		while ( i32(SDES_CSR_IDX) & SDES_CSR_BSY ) {
 			wait();
 		}
 
-		w = i32( TDOVEC_IDX );
+		w = i32( SDES_TDO_IDX );
+                w >>= (32 - l);
 		setw32( po, w, lb ); po += lb;
 
 		if ( measure_ ) {
@@ -267,7 +243,7 @@ printf("%08x\n", (unsigned long)hdr);
 void
 JtagDriverSerDesTmem::usage()
 {
-	printf("  Axi-Debug Bridge IP Fifo Driver options: (none)\n");
+	printf("  Raw JtagSerDes/TMEM Driver options: (none)\n");
 }
 
 static DriverRegistrar<JtagDriverSerDesTmem> r("serDesTmem");
