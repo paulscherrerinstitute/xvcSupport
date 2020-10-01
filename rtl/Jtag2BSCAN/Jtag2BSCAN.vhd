@@ -60,7 +60,6 @@ architecture Impl of Jtag2BSCAN is
     shiftDR    : std_logic;
     updateDR   : std_logic;
     selUSER    : std_logic;
-    selUSERLst : std_logic;
     drckSel    : std_logic;
   end record RegType;
 
@@ -70,7 +69,6 @@ architecture Impl of Jtag2BSCAN is
     shiftDR    => '0',
     updateDR   => '0',
     selUSER    => '0',
-    selUSERLst => '0',
     drckSel    => '0'
   );
 
@@ -134,25 +132,20 @@ begin
   begin
     v  := r;
     OE := shiftDRLoc or shiftIRLoc;
-    -- selUSERLoc changes state on negative clock edges.
-    -- However, this never happens anywhere close to the
-    -- shifting state when TDO matters. Thus, the extra
-    -- clock cycle delay may be ignored...
-    if ( r.selUSERLst = '1' and shiftIRLoc = '0' ) then
+    if ( (selUSERTap = '1') and (shiftIRLoc = '0') ) then
       v.tdo     := TDO;
     else
       v.tdo     := tapTdoLoc;
     end if;
 
-    -- BSCANE2 asserts SEL only when USER2 is captured the first time;
-    -- if captured again (while not changing IR contents in between)
-    -- SEL is deasserted!)
+    -- BSCANE2 (vhdl -- verilog seems different!) asserts SEL only when USER2 is captured the first time;
+    -- if captured again (while not changing IR contents in between) then SEL is deasserted!
+    -- This is most likely a bug in the VHDL simulation code (JTAG_SIM_VIRTEX6) and does not work with ICON.
+    -- Thus, we stick to asserting selUSER while the IR holds USER2
     if ( testLogicResetLoc = '1' ) then
       v.selUSER    := '0';
-      v.selUSERLst := '0';
     elsif ( updateIRLoc = '1' ) then
-      v.selUSERLst := selUSERTap;
-      v.selUSER    := selUSERTap and not r.SelUSERLst;
+      v.selUSER    := selUSERTap;
     end if;
     v.tdo       := v.tdo or not OE;
     v.captureDR := captureDRLoc;
@@ -173,7 +166,7 @@ begin
 
   CAPTURE <= r.captureDR;
   SHIFT   <= r.shiftDR;
-  -- original BSCANE2 deasserts on the positive clock edge when IR is
+  -- original BSCANE2 simulation deasserts on the positive clock edge when IR is
   -- updated:
   --
   --   UPDATE <= r.updateDR and updateDrLoc
@@ -182,7 +175,7 @@ begin
   -- because ICON seems to use UPDATE as a clock and any combinatorial
   -- input seems to be treated as a different input clock (which we'd have
   -- to constrain...)
-  UPDATE  <= r.updateDR and updateDRLoc;
+  UPDATE  <= r.updateDR -- and updateDRLoc;
   SEL     <= selUSERLoc;
   RESET   <= testLogicResetLoc;
   TDI     <= JTDI;
@@ -207,6 +200,6 @@ begin
 
   DRCK_SEL   <= r.drckSel;
   DRCK       <= (JTCK and r.drckSel ) or (not r.drckSel and selUSERLoc);
-
   UPDATE_SEL <= updateDRLoc;
+
 end architecture Impl;
