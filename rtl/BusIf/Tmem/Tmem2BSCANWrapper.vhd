@@ -12,7 +12,7 @@ entity Tmem2BSCANWrapper is
   generic (
     DEVICE_G    : string  := "VIRTEX6";
     TMEM_CS_G   : std_logic_vector(1 downto 0) := "00"; -- CS to which the block responds
-    USE_BUFS_G  : natural := 1;
+    USE_BUFS_G  : natural := 2;
     USE_AXIS_G  : boolean := false
   );
   port (
@@ -326,7 +326,7 @@ begin
       REG_IDCODE_G  =>  "1111001001", -- must be of IR_LENGTH_G
       REG_USERCODE_G=>  "1111001000", -- must be of IR_LENGTH_G
       REG_USER_G    =>  "1111000010", -- must be of IR_LENGTH_G
-      IR_VAL_G      =>  "1111110001", -- must be of IR_LENGTH_G
+      IR_VAL_G      =>  "1111010001", -- must be of IR_LENGTH_G
       IDCODE_VAL_G  =>  x"0424a093"
     )
     port map (
