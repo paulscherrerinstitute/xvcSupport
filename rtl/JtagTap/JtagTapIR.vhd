@@ -67,13 +67,15 @@ architecture Impl of JtagTapIR is
   type RegPType is record
     shift_ir     : std_logic_vector(IR_LENGTH_G - 1 downto 0);
     shift_dr     : std_logic_vector(MAX_DR_C    - 1 downto 0);
+    dr_decoded   : boolean;
     dr_lst       : natural range 0 to MAX_DR_C - 1;
   end record RegPType;
 
   constant REG_P_INIT_C : RegPType := (
-    shift_ir => (others => '0'),
-    shift_dr => (others => '0'),
-    dr_lst   => 0
+    shift_ir   => (others => '0'),
+    shift_dr   => (others => '0'),
+    dr_decoded => true,
+    dr_lst     => 0
   );
 
   signal rn   : RegNType;
@@ -116,6 +118,7 @@ begin
     elsif ( shiftIR = '1' ) then
       v.shift_ir := (tdi & rp.shift_ir(rp.shift_ir'left downto 1));
     elsif ( captureDR = '1' ) then
+      v.dr_decoded := true;
       if ( rn.ir = REG_IDCODE_G ) then
           v.shift_dr(IDCODE_VAL_G'range)   := IDCODE_VAL_G; 
           v.dr_lst                         := IDCODE_VAL_G'left;
@@ -123,6 +126,9 @@ begin
           v.shift_dr(USERCODE_VAL_G'range) := USERCODE_VAL_G; 
           v.dr_lst                         := USERCODE_VAL_G'left;
       else -- includes REG_BYPASS_C
+          if ( rn.ir /= REG_BYPASS_C ) then
+            v.dr_decoded := false;
+          end if;
           v.shift_dr(0) := '0';
           v.dr_lst      := 0;
       end if;
@@ -152,6 +158,6 @@ begin
   -- output signals must still be registered on falling edge by the user
   selBYPASS <= rnin.selBypass;
   selUSER   <= rnin.selUser;
-  tdo       <= rp.shift_ir(0) when shiftIR = '1' else rp.shift_dr(0);
+  tdo       <= rp.shift_ir(0) when shiftIR = '1' else rp.shift_dr(0) when rp.dr_decoded else '1';
 
 end architecture Impl;
