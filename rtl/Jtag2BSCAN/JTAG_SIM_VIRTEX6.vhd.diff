@@ -1,0 +1,69 @@
+*** JTAG_SIM_VIRTEX6.vhd.orig	2020-10-01 13:29:39.724736485 +0200
+--- JTAG_SIM_VIRTEX6.vhd	2020-10-01 13:30:10.388164059 +0200
+***************
+*** 641,672 ****
+  --####################################################################
+    prcs_JtagSetGlobalSignals:process(ClkUpdateIR_sig, Tlrst_sig, USER1_sig, USER2_sig, USER3_sig, USER4_sig)
+    begin
+!      if(rising_edge(USER1_sig)) then
+           JTAG_SEL1_GLBL     <= '1';
+           JTAG_SEL2_GLBL     <= '0';
+           JTAG_SEL3_GLBL     <= '0';
+           JTAG_SEL4_GLBL     <= '0';
+!      elsif(rising_edge(USER2_sig)) then
+           JTAG_SEL1_GLBL     <= '0';
+           JTAG_SEL2_GLBL     <= '1';
+           JTAG_SEL3_GLBL     <= '0';
+           JTAG_SEL4_GLBL     <= '0';
+!      elsif(rising_edge(USER3_sig)) then
+           JTAG_SEL1_GLBL     <= '0';
+           JTAG_SEL2_GLBL     <= '0';
+           JTAG_SEL3_GLBL     <= '1';
+           JTAG_SEL4_GLBL     <= '0';
+!      elsif(rising_edge(USER4_sig)) then
+           JTAG_SEL1_GLBL     <= '0';
+           JTAG_SEL2_GLBL     <= '0';
+           JTAG_SEL3_GLBL     <= '0';
+           JTAG_SEL4_GLBL     <= '1';
+!      elsif(rising_edge(ClkUpdateIR_sig)) then
+!          JTAG_SEL1_GLBL     <= '0';
+!          JTAG_SEL2_GLBL     <= '0';
+!          JTAG_SEL3_GLBL     <= '0';
+!          JTAG_SEL4_GLBL     <= '0';
+!      elsif(rising_edge(Tlrst_sig)) then
+           JTAG_SEL1_GLBL     <= '0';
+           JTAG_SEL2_GLBL     <= '0';
+           JTAG_SEL3_GLBL     <= '0';
+--- 641,672 ----
+  --####################################################################
+    prcs_JtagSetGlobalSignals:process(ClkUpdateIR_sig, Tlrst_sig, USER1_sig, USER2_sig, USER3_sig, USER4_sig)
+    begin
+!      if('1' = (Tlrst_sig)) then
+!          JTAG_SEL1_GLBL     <= '0';
+!          JTAG_SEL2_GLBL     <= '0';
+!          JTAG_SEL3_GLBL     <= '0';
+!          JTAG_SEL4_GLBL     <= '0';
+!      elsif('1' = (USER1_sig)) then
+           JTAG_SEL1_GLBL     <= '1';
+           JTAG_SEL2_GLBL     <= '0';
+           JTAG_SEL3_GLBL     <= '0';
+           JTAG_SEL4_GLBL     <= '0';
+!      elsif('1' = (USER2_sig)) then
+           JTAG_SEL1_GLBL     <= '0';
+           JTAG_SEL2_GLBL     <= '1';
+           JTAG_SEL3_GLBL     <= '0';
+           JTAG_SEL4_GLBL     <= '0';
+!      elsif('1' = (USER3_sig)) then
+           JTAG_SEL1_GLBL     <= '0';
+           JTAG_SEL2_GLBL     <= '0';
+           JTAG_SEL3_GLBL     <= '1';
+           JTAG_SEL4_GLBL     <= '0';
+!      elsif('1' = (USER4_sig)) then
+           JTAG_SEL1_GLBL     <= '0';
+           JTAG_SEL2_GLBL     <= '0';
+           JTAG_SEL3_GLBL     <= '0';
+           JTAG_SEL4_GLBL     <= '1';
+!      elsif('1' = (ClkUpdateIR_sig)) then
+           JTAG_SEL1_GLBL     <= '0';
+           JTAG_SEL2_GLBL     <= '0';
+           JTAG_SEL3_GLBL     <= '0';
