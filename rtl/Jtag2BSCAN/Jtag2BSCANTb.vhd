@@ -32,7 +32,7 @@ architecture Impl of Jtag2BSCANTb is
   constant REG_IDCODE_C   : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111001001"; -- must be of IR_LENGTH_C
   constant REG_USERCODE_C : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111001000"; -- must be of IR_LENGTH_C
   constant REG_USER_C     : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111000010"; -- must be of IR_LENGTH_C
-  constant IR_VAL_C       : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111010001"; -- must be of IR_LENGTH_C
+  constant IR_VAL_C       : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111110001"; -- must be of IR_LENGTH_C bit 5 indicates configured device
   constant IDCODE_VAL_C   : std_logic_vector(31 downto 0)              := x"0424a093";
   constant USERCODE_VAL_C : std_logic_vector(31 downto 0)              := x"ffffffff";
   constant USER_VAL_C     : std_logic_vector(31 downto 0)              := x"affecafe";
@@ -61,6 +61,8 @@ architecture Impl of Jtag2BSCANTb is
   signal UPDATE_CMP       : std_logic;
   signal RESET_CMP        : std_logic;
   signal TDI_CMP          : std_logic;
+  signal UPDATE_SEL       : std_logic;
+  signal UPDATE_RAW       : std_logic;
 
 
   signal tstDone          : boolean := false;
@@ -93,6 +95,8 @@ begin
   end process P_USR;
 
   TDO <= usr(0);
+
+  UPDATE <= UPDATE_RAW and UPDATE_SEL;
 
   B_TST : process  is
 
@@ -269,12 +273,13 @@ begin
       DRCK           => DRCK,
       CAPTURE        => CAPTURE,
       SHIFT          => SHIFT,
-      UPDATE         => UPDATE,
+      UPDATE         => UPDATE_RAW,
+      UPDATE_SEL     => UPDATE_SEL,
       RESET          => RESET,
       TDI            => TDI
     );
 
-  U_CMP_TAP : JTAG_SIM_VIRTEX6
+  U_CMP_TAP : entity work.JTAG_SIM_VIRTEX6
     generic map (
       PART_NAME      => PART_NAME_C
     )

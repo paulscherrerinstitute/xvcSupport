@@ -33,7 +33,7 @@ architecture rtl of Jtag2BSCANsTb is
   constant REG_IDCODE_C   : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111001001"; -- must be of IR_LENGTH_C
   constant REG_USERCODE_C : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111001000"; -- must be of IR_LENGTH_C
   constant REG_USER_C     : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111000010"; -- must be of IR_LENGTH_C
-  constant IR_VAL_C       : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111010001"; -- must be of IR_LENGTH_C
+  constant IR_VAL_C       : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111110001"; -- must be of IR_LENGTH_C
   constant IDCODE_VAL_C   : std_logic_vector(31 downto 0)              := x"0424a093";
   constant USERCODE_VAL_C : std_logic_vector(31 downto 0)              := x"ffffffff";
 

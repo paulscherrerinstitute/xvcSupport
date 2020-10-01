@@ -16,7 +16,7 @@ architecture tb of Tmem2BSCANWrapperTb is
 
   constant DEPTH_C     : slv := x"2";
 
-  constant IR_RB_VAL_C : slv(9 downto 0) := "1111010001";
+  constant IR_RB_VAL_C : slv(9 downto 0) := "1111110001";
 
   function min(a,b : natural) return natural is
   begin
