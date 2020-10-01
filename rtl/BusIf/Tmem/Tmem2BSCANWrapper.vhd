@@ -50,6 +50,9 @@ architecture Impl of Tmem2BSCANWrapper is
 
   constant NWORDS_C     : natural := 2048 / W_C; -- 18kBit FIFO
 
+  -- increments of 0100 are backwards incompatible
+  constant VERSION_C    : std_logic_vector(3 downto 0) := "0001";
+
 begin
 
   -- use a block so we have a name we can attach constraints to
@@ -105,15 +108,27 @@ begin
     signal updt_sel           : std_logic;
 
     signal auxIn              : std_logic_vector(127 downto 0) := (others => '0');
-    signal auxOut             : std_logic_vector(127 downto 0);
+    signal auxOut             : std_logic_vector(auxIn'range);
 
-    signal serDesInRdy        : std_logic;
+    signal serDesInRdy        : std_logic := '0';
     signal serDesInVal        : std_logic;
 
-    signal serDesOutVal       : std_logic;
+    signal serDesOutVal       : std_logic := '0';
     signal tdoVal             : std_logic_vector( 31 downto 0);
 
     signal numBits            : natural range 0 to 8*W_C - 1;
+
+    function AUX_RO_M_F return std_logic_vector is
+      variable v := std_logic_vector(auxIn'range);
+    begin
+      v := x"ffffffff_7ff8fee0_00000000_00000000";
+      if ( USE_AXIS_G ) then
+        v := v or x"00000000_0000ffff_00000000_00000000";
+      end if;
+      return v;
+    end function AUX_RO_M_F;
+
+    constant  AUX_INIT_C      : std_logic_vector(auxIn'range) := x"00000000_00020000_00000000_00000000";
 
   begin
 
@@ -121,8 +136,9 @@ begin
     generic map (
       DEVICE_G      => DEVICE_G,
       TMEM_CS_G     => TMEM_CS_G,
-      AUX_INIT_G    => x"00000000_00020000_00000000_00000000",
-      AUX_RO_M_G    => x"ffffffff_7ff8fee0_00000000_00000000"
+      AUX_INIT_G    => AUX_INIT_C,
+      AUX_RO_M_G    => AUX_RO_M_F,
+      VERSION_G     => VERSION_C
     )
     port map (
       clk           => clk,
@@ -149,8 +165,6 @@ begin
 
       irq           => irq
     );
-
-   G_SERDES : if ( not USE_AXIS_G ) generate
 
    auxOut(68 downto  0) <= auxIn(68 downto 0);
    auxOut(71 downto 69) <= (others => '0');
@@ -179,6 +193,8 @@ begin
 
    bb_msk               <= auxIn(95);
    auxOut(95)           <= auxIn(95);
+
+   G_SERDES : if ( not USE_AXIS_G ) generate
 
    P_tdoVal : process ( serDesOutVal, tdoVal, auxIn ) is
    begin

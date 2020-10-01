@@ -45,7 +45,8 @@ entity Axis2TmemFifo is
     DEVICE_G    : string := "VIRTEX6";
     TMEM_CS_G   : std_logic_vector(  1 downto 0) := "00"; -- CS to which the block responds
     AUX_INIT_G  : std_logic_vector(127 downto 0) := (others => '0');
-    AUX_RO_M_G  : std_logic_vector(127 downto 0) := (others => '0')
+    AUX_RO_M_G  : std_logic_vector(127 downto 0) := (others => '0');
+    VERSION_G   : std_logic_vector(  3 downto 0) := (others => '0') -- interface version
   );
   port (
     clk         : in  sl;
@@ -327,7 +328,7 @@ begin
     tmemDATRLoc <= (others => '0');
     case ( fifoRegSelDly ) is
       when "0001"   => tmemDATRLoc                                    <= x"6666_aaaa"  & fifoInpDO;
-      when "0010"   => tmemDATRLoc( 16 + wcntReg'length - 1 downto 0) <= (x"0" & slv(DEPTH_KB_C) &  statusReg );
+      when "0010"   => tmemDATRLoc( 16 + wcntReg'length - 1 downto 0) <= (VERSION_G & slv(DEPTH_KB_C) &  statusReg );
       when "0100"   => tmemDATRLoc                                    <= auxReg( 63 downto  0);
       when "1000"   => tmemDATRLoc                                    <= auxReg(127 downto 64);
       when others  => tmemDATRLoc <= x"affecafe" & x"5555aaaa";
