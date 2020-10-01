@@ -322,7 +322,7 @@ begin
   -- TMEM DATR readout mux
 
   -- Note: all readout paths must have the same pipeline delay (1); thus we register the statusReg
-  P_DATR_MUX : process (fifoRegSelDly, fifoInpDO, statusReg) is
+  P_DATR_MUX : process (fifoRegSelDly, fifoInpDO, statusReg, auxReg) is
   begin
     tmemDATRLoc <= (others => '0');
     case ( fifoRegSelDly ) is
@@ -385,7 +385,7 @@ begin
 
   fifoOutDI    <= tmemDATW( fifoOutDI'range );
 
-  P_fifoOutREN : process (rstInProg, fifoOutOwnerAXIS, fifoOutValid, fifoOutEmpty, axisOutSub) is
+  P_fifoOutREN : process (rstInProg, fifoOutRDEN, fifoOutOwnerAXIS, fifoOutValid, fifoOutEmpty, axisOutSub) is
     variable v : std_logic;
   begin
     v := fifoOutRDEN;
