@@ -39,6 +39,7 @@ private:
     static const uint32_t SDES_CSR_BB_TMS = 0x00020000;
     static const uint32_t SDES_CSR_BB_TDI = 0x00040000;
     static const uint32_t SDES_CSR_BB_TDO = 0x00080000;
+    static const uint32_t SDES_CSR_BB_ENA = 0x80000000;
 
     unsigned long     maxVec_;
     unsigned          wrdSiz_;

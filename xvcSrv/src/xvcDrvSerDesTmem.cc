@@ -110,8 +110,16 @@ uint32_t csr = i32( SDES_CSR_IDX );
 	csr |=   SDES_CSR_BB_TMS;
 	csr &= ~ SDES_CSR_BB_TDI;
 	csr &= ~ SDES_CSR_BB_TCK;
-	// reset TAP and leave with TMS asserted, TDI deasserted
+
+	csr &= ~ SDES_CSR_BB_ENA;
+
+	o32( SDES_CSR_IDX, csr );
+	// reset TAP and leave with TMS asserted (in fact; TMS seems deasserted due to a bug?), TDI deasserted
 	xfer32sdes( 0xff, 0x00, 8, 0 );
+
+	if ( bitBang_ ) {
+		o32( SDES_CSR_IDX, csr | SDES_CSR_BB_ENA );
+	}
 }
 
 void
