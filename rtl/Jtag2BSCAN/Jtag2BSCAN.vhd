@@ -175,7 +175,7 @@ begin
   -- because ICON seems to use UPDATE as a clock and any combinatorial
   -- input seems to be treated as a different input clock (which we'd have
   -- to constrain...)
-  UPDATE  <= r.updateDR -- and updateDRLoc;
+  UPDATE  <= r.updateDR; -- and updateDRLoc;
   SEL     <= selUSERLoc;
   RESET   <= testLogicResetLoc;
   TDI     <= JTDI;

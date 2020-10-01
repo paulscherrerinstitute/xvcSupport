@@ -119,7 +119,7 @@ begin
     signal numBits            : natural range 0 to 8*W_C - 1;
 
     function AUX_RO_M_F return std_logic_vector is
-      variable v := std_logic_vector(auxIn'range);
+      variable v : std_logic_vector(auxIn'range);
     begin
       v := x"ffffffff_7ff8fee0_00000000_00000000";
       if ( USE_AXIS_G ) then
