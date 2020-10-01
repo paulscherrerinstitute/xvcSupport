@@ -15,6 +15,11 @@ architecture rtl of Jtag2BSCANsTb is
   signal clk                    : std_logic := '0';
   signal run                    : boolean   := true;
 
+  function min(a,b : natural) return natural is
+  begin
+    if ( a < b ) then return a; else return b; end if;
+  end function min;
+
   constant USE_BUFG             : boolean   := true;
 
   constant CLK_DIV2_C     : natural := 2;
@@ -31,6 +36,8 @@ architecture rtl of Jtag2BSCANsTb is
   constant IR_VAL_C       : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111010001"; -- must be of IR_LENGTH_C
   constant IDCODE_VAL_C   : std_logic_vector(31 downto 0)              := x"0424a093";
   constant USERCODE_VAL_C : std_logic_vector(31 downto 0)              := x"ffffffff";
+
+  constant SEQ_LEN_C      : natural := min( iSeq'length, oSeq'length ) - 1; -- skip sentinel
 
 -- old   constant iSeq : TmsTdiArray := (
 -- old   (
@@ -88,6 +95,8 @@ architecture rtl of Jtag2BSCANsTb is
 
   signal iidx : natural := 0;
   signal oidx : natural := 0;
+  signal sidx : natural := 0;
+  signal sbit : natural := 0;
 
 --  constant tmsVec_C             : std_logic_vector :=
 --     "01"&"10000000000000000000000000000000"&"001"&"01"&"100000"&"0011"&"0"&"11111"&"0"&"11111";
@@ -101,8 +110,12 @@ architecture rtl of Jtag2BSCANsTb is
   signal tmsVec                 : std_logic_vector(W_C - 1 downto 0);
   signal tdiVec                 : std_logic_vector(W_C - 1 downto 0);
   signal tdoVec                 : std_logic_vector(W_C - 1 downto 0);
+  signal tdoVecCmp              : std_logic_vector(W_C - 1 downto 0);
+  signal tdoVecErr              : std_logic := '0';
+  signal tdoVecErrs             : natural   := 0;
 
   signal nbits                  : natural := W_C - 1;
+  signal nbitsTdo               : natural := W_C - 1;
 
   signal ivalid                 : std_logic := '0';
   signal iready                 : std_logic;
@@ -132,6 +145,10 @@ architecture rtl of Jtag2BSCANsTb is
   signal togl                   : std_logic := '1';
 
   signal cntcmp                 : natural   := 0;
+
+  signal minusrlen              : natural   := 200000;
+  signal maxusrlen              : natural   := 0;
+  signal usrlen                 : natural   := 0;
 begin
 
   P_CLK : process is
@@ -154,30 +171,53 @@ begin
     end if;
   end process P_TGL;
 
-  TDO <= togl;
+  TDO <= 'X' when sidx >= SEQ_LEN_C else oSeq(sidx).tdo(sbit);
+
+  P_SIMTDO : process ( jtck ) is
+  begin
+    if ( rising_edge(jtck) ) then
+      if ( sbit = oSeq(sidx).nbits - 1 ) then
+        sbit <= 0;
+        sidx <= sidx + 1;
+      else
+        sbit <= sbit + 1;
+      end if;
+    end if;
+  end process P_SIMTDO;
+
+  tdoVecCmp <=  oSeq(oidx).tdo;
+  nbitsTdo  <=  oSeq(oidx).nbits;
 
   P_CNT : process (clk) is
   begin
     if ( rising_edge( clk ) ) then
-      cnt <= cnt + 1;
+      cnt       <= cnt + 1;
+      tdoVecErr <= '0';
       if ( cnt = 5 ) then
         rst    <= '0';
         ivalid <= '1';
         oready <= '1';
       end if;
       if ( (ivalid and iready) = '1' ) then
-        if ( iidx = iSeq'length - 1 ) then
+        if ( iidx = SEQ_LEN_C - 1 ) then
         	ivalid <= '0';
         else
             iidx    <= iidx + 1;
         end if;
       end if;
       if ( (ovalid and oready) = '1' ) then
---NOPRINT        print( str(tdoVec) );
-        if ( oidx = iSeq'length - 1 ) then
+        if ( tdoVec(tdoVec'left downto 32 - nbitsTdo) /=  tdoVecCmp(nbitsTdo - 1 downto 0) ) then
+            tdoVecErr  <= '1';
+            tdoVecErrs <= tdoVecErrs + 1;
+--          report "TDOVEC MISMATCH @oidx(" & natural'image(oidx) & ") " & str(tdoVec)  severity failure;
+        end if;
+        if ( oidx = SEQ_LEN_C - 1 ) then
           oready <= '0';
           run    <= false;
           report "Test PASSED; " & natural'image(cntcmp) & " comparison loops" severity note;
+
+          report "Min USERLEN: " & natural'image(minusrlen) & " Max USERLEN: " & natural'image(maxusrlen);
+          report "TDO vector mismatches: " & natural'image(tdoVecErrs) severity note;
         else
           oidx   <= oidx + 1;
         end if;
@@ -219,6 +259,7 @@ begin
       if ( (jtdocmp /= 'Z') and (jtdo /= jtdocmp) ) then
         report "TDO mismatch" severity failure;
       end if;
+      if ( false ) then
       report "OUT "
          & std_logic'image(jtck)
          & std_logic'image(jtms)
@@ -231,6 +272,7 @@ begin
          & std_logic'image(RESET)
          & std_logic'image(TDI)
          & std_logic'image(TDO) severity note;
+      end if;
       cntcmp <= cntcmp + 1;
     end loop;
 
@@ -343,7 +385,7 @@ begin
   end generate;
 
 
-  U_CMP_TAP : JTAG_SIM_VIRTEX6
+  U_CMP_TAP : entity work.JTAG_SIM_VIRTEX6
     generic map (
       PART_NAME      => PART_NAME_C
     )
@@ -370,6 +412,31 @@ begin
       TCK            => open,
       TMS            => open
     );
+
+  P_DBG_D : process ( DRCK ) is
+  begin
+    if ( rising_edge( DRCK ) ) then
+      if ( CAPTURE = '1' ) then
+        usrlen <= 0;
+      elsif ( SHIFT = '1' ) then
+        usrlen <= usrlen + 1;
+      end if;
+    end if;
+  end process P_DBG_D;
+
+  P_DBG_U : process ( UPDATE ) is
+  begin
+    report "USERLEN " & natural'image(usrlen);
+    if ( rising_edge( UPDATE ) ) then
+      if ( usrlen > maxusrlen ) then
+        maxusrlen <= usrlen;
+      end if;
+      if ( usrlen < minusrlen ) then
+        minusrlen <= usrlen;
+      end if;
+    end if;
+  end process P_DBG_U;
+
 
 end architecture rtl;
 
