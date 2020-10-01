@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <toscaApi.h>
 
+#define DBG_LOG_BSCAN 1
+
 JtagDriverSerDesTmem::JtagDriverSerDesTmem(int argc, char *const argv[], const char *devnam)
 : JtagDriverAxisToJtag( argc, argv       ),
   doSleep_            ( false            ),
@@ -18,7 +20,8 @@ JtagDriverSerDesTmem::JtagDriverSerDesTmem(int argc, char *const argv[], const c
   maxPollDelayUs_     ( 0                ),
   toscaSpace_         ( TOSCA_USER2      ),
   toscaBase_          ( 0x200000         ),
-  bitBang_            ( false            )
+  bitBang_            ( false            ),
+  debug_              ( 0                )
 {
 uint32_t      csrVal;
 unsigned long maxBytes;
@@ -35,13 +38,22 @@ const char   *irqfn = 0;
 		throw std::runtime_error("Invalid <target>");
 	}
 
-	while ( (opt = getopt(argc, argv, "b")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "bl")) > 0 ) {
 		switch ( opt ) {
-			case 'b': bitBang_ = true; measure_ = 0; break;
+			case 'b': bitBang_ = true;          break;
+			case 'l': debug_  |= DBG_LOG_BSCAN; break;
 			default:
 				fprintf( stderr,"Unknown driver option -%c\n", opt );
 				throw std::runtime_error("Unknown driver option");
 		}
+	}
+
+	if ( debug_ & DBG_LOG_BSCAN ) {
+		bitBang_ = true;
+	}
+
+	if ( bitBang_ ) {
+		measure_ = 0;
 	}
 
 	reset();
@@ -143,7 +155,7 @@ uint32_t
 JtagDriverSerDesTmem::xfer32bb(uint32_t tms, uint32_t tdi, unsigned nbits)
 {
 uint32_t m;
-uint32_t csr, tdo;
+uint32_t csr, tdo, csrrb;
 unsigned i;
 
 	tdo = 0;
@@ -162,15 +174,22 @@ unsigned i;
 			
 		o32( SDES_CSR_IDX, csr );
 		bbsleep();
-		if ( i32( SDES_CSR_IDX ) & SDES_CSR_BB_TDO ) {
+		if ( (csrrb = i32( SDES_CSR_IDX )) & SDES_CSR_BB_TDO ) {
 			tdo |= m;
+		}
+		if ( (debug_ & DBG_LOG_BSCAN) ) {
+			fprintf(stderr, "BSCNL: 0x%08x\n", (unsigned long)csrrb);
 		}
 		csr |= SDES_CSR_BB_TCK;
 		o32( SDES_CSR_IDX, csr );
 		bbsleep();
+		if ( (debug_ & DBG_LOG_BSCAN) ) {
+			csrrb = i32( SDES_CSR_IDX );
+			fprintf(stderr, "BSCNH: 0x%08x\n", (unsigned long)csrrb);
+		}
 		csr &= ~SDES_CSR_BB_TCK;
 	}
-	o32( SDES_CSR_IDX, csr );
+//	o32( SDES_CSR_IDX, csr );
 	return tdo;
 }
 
