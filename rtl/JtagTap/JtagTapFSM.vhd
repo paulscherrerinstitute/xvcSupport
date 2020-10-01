@@ -16,9 +16,14 @@ use ieee.numeric_std.all;
 -- The outputs change state on the rising edge of tck.
 
 entity JtagTapFsm is
+  generic (
+    TCK_IS_CLOCK_G : boolean := true
+  );
   port (
-    clk            : in  std_logic;
-    rst            : in  std_logic;
+    clk            : in  std_logic := '0';
+    rst            : in  std_logic := '0';
+    tck_posedge    : in  std_logic := '0';
+    tck_negedge    : in  std_logic := '0';
     tck            : in  std_logic;
     tms            : in  std_logic;
     tdi            : in  std_logic;
@@ -168,12 +173,27 @@ begin
     rin <= v;
   end process P_COMB;  
 
-  P_SEQ : process (tck) is
-  begin
-    if ( rising_edge( tck ) ) then
-      r <= rin;
-    end if;
-  end process P_SEQ;
+  G_TCK : if ( TCK_IS_CLOCK_G ) generate
+    P_SEQ : process (tck) is
+    begin
+      if ( rising_edge( tck ) ) then
+        r <= rin;
+      end if;
+    end process P_SEQ;
+  end generate G_TCK;
+
+  G_TCK_CE : if ( not TCK_IS_CLOCK_G ) generate
+    P_SEQ : process (clk) is
+    begin
+      if ( rising_edge( clk ) ) then
+        if ( rst = '1' ) then
+          r <= REG_INIT_C;
+        elsif ( tck_posedge = '1' ) then
+          r <= rin;
+        end if;
+      end if;
+    end process P_SEQ;
+  end generate G_TCK_CE;
 
   testLogicReset <= r.primaryState( TEST_LOGIC_RESET_C );
   runTestIdle    <= r.primaryState( RUN_TEST_IDLE_C    );

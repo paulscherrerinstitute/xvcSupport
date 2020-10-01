@@ -20,9 +20,14 @@ entity JtagTapIR is
     REG_USER_G     : std_logic_vector              := "000010"; -- must be of IR_LENGTH_G
     IR_VAL_G       : std_logic_vector              := "110101"; -- must be of IR_LENGTH_G
     IDCODE_VAL_G   : std_logic_vector(31 downto 0) := x"22228093";
-    USERCODE_VAL_G : std_logic_vector(31 downto 0) := x"ffffffff"
+    USERCODE_VAL_G : std_logic_vector(31 downto 0) := x"ffffffff";
+    TCK_IS_CLOCK_G : boolean                       := true
   );
   port (
+    clk            : in  std_logic := '0';
+    rst            : in  std_logic := '0';
+    tck_posedge    : in  std_logic := '0';
+    tck_negedge    : in  std_logic := '0';
     tck            : in  std_logic;
     tdi            : in  std_logic;
     testLogicReset : in  std_logic; -- input from FSM
@@ -140,20 +145,49 @@ begin
     rpin <= v;
   end process P_COMB_P;
 
-  P_SEQ_N : process ( tck ) is
-  begin
-    if ( falling_edge( tck ) ) then
-      rn <= rnin;
-    end if;
-  end process P_SEQ_N;
+  G_TCK : if ( TCK_IS_CLOCK_G ) generate
 
-  P_SEQ_P : process ( tck ) is
-  begin
-    if ( rising_edge( tck ) ) then
-      rp <= rpin;
-    end if;
-  end process P_SEQ_P;
+    P_SEQ_N : process ( tck ) is
+    begin
+      if ( falling_edge( tck ) ) then
+        rn <= rnin;
+      end if;
+    end process P_SEQ_N;
+  
+    P_SEQ_P : process ( tck ) is
+    begin
+      if ( rising_edge( tck ) ) then
+        rp <= rpin;
+      end if;
+    end process P_SEQ_P;
 
+  end generate G_TCK;
+  
+  G_TCK_CE : if ( not TCK_IS_CLOCK_G ) generate
+
+    P_SEQ_N : process ( clk ) is
+    begin
+      if ( rising_edge( clk ) ) then
+        if ( rst = '1' ) then
+          rn <= REG_N_INIT_C;
+        elsif ( tck_negedge = '1' ) then
+          rn <= rnin;
+        end if;
+      end if;
+    end process P_SEQ_N;
+ 
+    P_SEQ_P : process ( clk ) is
+    begin
+      if ( rising_edge( clk ) ) then
+        if ( rst = '1' ) then
+          rp <= REG_P_INIT_C;
+        elsif ( tck_posedge = '1' ) then
+          rp <= rpin;
+        end if;
+      end if;
+    end process P_SEQ_P;
+  
+  end generate G_TCK_CE;
 
   -- output signals must still be registered on falling edge by the user
   selBYPASS <= rnin.selBypass;
