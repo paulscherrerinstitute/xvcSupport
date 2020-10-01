@@ -17,7 +17,8 @@ JtagDriverSerDesTmem::JtagDriverSerDesTmem(int argc, char *const argv[], const c
   measure_            ( 100              ),
   maxPollDelayUs_     ( 0                ),
   toscaSpace_         ( TOSCA_USER2      ),
-  toscaBase_          ( 0x200000         )
+  toscaBase_          ( 0x200000         ),
+  bitBang_            ( false            )
 {
 uint32_t      csrVal;
 unsigned long maxBytes;
@@ -34,8 +35,9 @@ const char   *irqfn = 0;
 		throw std::runtime_error("Invalid <target>");
 	}
 
-	while ( (opt = getopt(argc, argv, "")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "b")) > 0 ) {
 		switch ( opt ) {
+			case 'b': bitBang_ = true; measure_ = 0; break;
 			default:
 				fprintf( stderr,"Unknown driver option -%c\n", opt );
 				throw std::runtime_error("Unknown driver option");
@@ -99,6 +101,17 @@ JtagDriverSerDesTmem::wait()
 void
 JtagDriverSerDesTmem::reset()
 {
+uint32_t csr = i32( SDES_CSR_IDX );
+
+	// reset bit-banging interface
+	csr &= ~ SDES_CSR_BBMSK;
+	// must pull TMS high; TMS on jtag is bb-TMS AND serdes-TMS
+	// TCK and TDI must be low (ORed)
+	csr |=   SDES_CSR_BB_TMS;
+	csr &= ~ SDES_CSR_BB_TDI;
+	csr &= ~ SDES_CSR_BB_TCK;
+	// reset TAP and leave with TMS asserted, TDI deasserted
+	xfer32sdes( 0xff, 0x00, 8, 0 );
 }
 
 void
@@ -118,6 +131,76 @@ JtagDriverSerDesTmem::getMaxVectorSize()
 	return maxVec_;
 }
 
+uint32_t
+JtagDriverSerDesTmem::xfer32bb(uint32_t tms, uint32_t tdi, unsigned nbits)
+{
+uint32_t m;
+uint32_t csr, tdo;
+unsigned i;
+
+	tdo = 0;
+
+	csr = i32( SDES_CSR_IDX ) & ~SDES_CSR_BBMSK;
+	for ( i = 0, m = 1; i < nbits; i++, m <<= 1 ) {
+		if ( (tms & m ) )
+			csr |=   SDES_CSR_BB_TMS;
+		else
+			csr &= ~ SDES_CSR_BB_TMS;
+
+		if ( (tdi & m ) )
+			csr |=   SDES_CSR_BB_TDI;
+		else
+			csr &= ~ SDES_CSR_BB_TDI;
+			
+		o32( SDES_CSR_IDX, csr );
+		bbsleep();
+		if ( i32( SDES_CSR_IDX ) & SDES_CSR_BB_TDO ) {
+			tdo |= m;
+		}
+		csr |= SDES_CSR_BB_TCK;
+		o32( SDES_CSR_IDX, csr );
+		bbsleep();
+		csr &= ~SDES_CSR_BB_TCK;
+	}
+	o32( SDES_CSR_IDX, csr );
+	return tdo;
+}
+
+void
+JtagDriverSerDesTmem::bbsleep()
+{
+struct timespec t;
+	t.tv_sec  = 0;
+	t.tv_nsec = 1000;
+	nanosleep( &t, 0 );
+}
+
+uint32_t
+JtagDriverSerDesTmem::xfer32sdes(uint32_t tms, uint32_t tdi, unsigned nbits, struct timespec *then)
+{
+uint32_t csr, tdo;
+
+	csr  = i32( SDES_CSR_IDX ) & ~ SDES_CSR_LRMSK;
+	csr |= (nbits - 1) << SDES_CSR_LENS;
+
+	o32( SDES_TMS_IDX, tms );
+	o32( SDES_TDI_IDX, tdi );
+	o32( SDES_CSR_IDX, csr | SDES_CSR_RUN );
+
+	if ( then && measure_ ) {
+		doSleep_ = false;
+		clock_gettime( CLOCK_MONOTONIC, then );
+	}
+
+	while ( i32(SDES_CSR_IDX) & SDES_CSR_BSY ) {
+		wait();
+	}
+
+	tdo = i32( SDES_TDO_IDX );
+	tdo >>= (32 - nbits);
+	return tdo;
+}
+
 int
 JtagDriverSerDesTmem::xfer( uint8_t *txb, unsigned txBytes, uint8_t *hdbuf, unsigned hsize, uint8_t *rxb, unsigned size )
 {
@@ -125,10 +208,11 @@ Header   hdr;
 unsigned nbits, l, lb;
 uint8_t  *pi, *po;
 int      min;
-uint32_t w, csr;
 unsigned nbytes;
 unsigned nwords;
 unsigned wsz = hsize;
+
+uint32_t tms, tdi, tdo;
 
 struct   timespec then, now;
 
@@ -162,7 +246,7 @@ printf("%08x\n", (unsigned long)hdr);
 			throw std::runtime_error("AxiDbgBridgeIP driver: xfer() found unexpected command");
 	}
 
-	if ( wsz != sizeof(w) ) {
+	if ( wsz != sizeof(tms) ) {
 		throw std::runtime_error("AXI-DebugBridge IP only supports word-lengths of 4");
 	}
 
@@ -181,36 +265,21 @@ printf("%08x\n", (unsigned long)hdr);
 	setHdr( hdbuf, hdr );
 
 
-	lb = sizeof(w);
+	lb = sizeof(tms);
 	l  = 8*lb;
-
-	csr = (l - 1) << SDES_CSR_LENS;
 
 	while ( nbits > 0 ) {
 
-		w = getw32( pi ); pi += sizeof(w);
-		o32( SDES_TMS_IDX, w );
-		w = getw32( pi ); pi += sizeof(w);
-		o32( SDES_TDI_IDX, w );
-		if (nbits < 8*sizeof(w)) {
+		tms = getw32( pi ); pi += sizeof(tms);
+		tdi = getw32( pi ); pi += sizeof(tms);
+		if (nbits < 8*sizeof(tms)) {
 			l   = nbits;
-			csr = (l - 1) << SDES_CSR_LENS;
 			lb  = (l + 7)/8;
 		}
-		o32( SDES_CSR_IDX, csr | SDES_CSR_RUN );
 
-		if ( measure_ ) {
-			doSleep_ = false;
-			clock_gettime( CLOCK_MONOTONIC, &then );
-		}
+		tdo = bitBang_ ? xfer32bb( tms, tdi, l ) : xfer32sdes( tms, tdi, l, &then );
 
-		while ( i32(SDES_CSR_IDX) & SDES_CSR_BSY ) {
-			wait();
-		}
-
-		w = i32( SDES_TDO_IDX );
-                w >>= (32 - l);
-		setw32( po, w, lb ); po += lb;
+		setw32( po, tdo, lb ); po += lb;
 
 		if ( measure_ ) {
 			unsigned long diffNs, diffUs;
@@ -243,7 +312,7 @@ printf("%08x\n", (unsigned long)hdr);
 void
 JtagDriverSerDesTmem::usage()
 {
-	printf("  Raw JtagSerDes/TMEM Driver options: (none)\n");
+	printf("  Raw JtagSerDes/TMEM Driver options: -b -> use bit-banging interface\n");
 }
 
 static DriverRegistrar<JtagDriverSerDesTmem> r("serDesTmem");
