@@ -109,6 +109,8 @@ entity AxisToJtagCore is
       running          : out sl;
 
       tck              : out sl;
+      tck_posedge      : out sl;
+      tck_negedge      : out sl;
       tdi              : out sl;
       tms              : out sl;
       tdo              : in  sl
@@ -211,6 +213,8 @@ begin
          dataOut       => tdoData,
 
          tck           => tck,
+         tck_posedge   => tck_posedge,
+         tck_negedge   => tck_negedge,
          tms           => tms,
          tdi           => tdi,
          tdo           => tdo

@@ -44,6 +44,8 @@ entity JtagSerDesCore is
       dataOutReady : in  sl;
 
       tck          : out sl;
+      tck_posedge  : out sl; -- may be using as a clock-enable by logic running on 'clk'
+      tck_negedge  : out sl; -- may be using as a clock-enable by logic running on 'clk'
       tdi          : out sl;
       tms          : out sl;
       tdo          : in  sl
@@ -61,6 +63,8 @@ architecture JtagSerDesCoreImpl of JtagSerDesCore is
       tdi     : slv(WIDTH_G - 1 downto 0 );
       tdo     : slv(WIDTH_G     downto 0 );
       tck     : sl;
+      tck_pos : sl;
+      tck_neg : sl;
       lastBit : boolean;
       oValid  : sl;
       iReady  : sl;
@@ -74,6 +78,8 @@ architecture JtagSerDesCoreImpl of JtagSerDesCore is
       tdi     => (others => '0'),
       tdo     => (others => '0'),
       tck     => '0',
+      tck_pos => '0',
+      tck_neg => '0',
       lastBit => false,
       oValid  => '0',
       iReady  => '1',
@@ -86,6 +92,8 @@ architecture JtagSerDesCoreImpl of JtagSerDesCore is
 begin
 
    tck          <= r.tck;
+   tck_posedge  <= r.tck_pos;
+   tck_negedge  <= r.tck_neg;
    tdi          <= r.tdi(0);
    tms          <= r.tms(0);
 
@@ -97,6 +105,9 @@ begin
       variable v : RegType;
    begin
       v := r;
+
+      v.tck_pos := '0';
+      v.tck_neg := '0';
 
       case (r.state) is
          when IDLE_S =>
@@ -126,10 +137,11 @@ begin
                         -- then we continue shifting - otherwise we must wait
                         if ( dataOutReady /= '0' ) then
                            -- next clock; continue shifting
-                           v.tck   := '1';
-                           v.div   := CLK_DIV2_G - 1;
+                           v.tck     := '1';
+                           v.tck_pos := '1';
+                           v.div     := CLK_DIV2_G - 1;
                         else
-                           v.state := WAI_S;
+                           v.state   := WAI_S;
                         end if;
                      else
                         -- we are done
@@ -141,8 +153,9 @@ begin
                         end if;
                      end if;
                   else
-                     v.tck := '1';
-                     v.div := CLK_DIV2_G - 1;
+                     v.tck     := '1';
+                     v.tck_pos := '1';
+                     v.div     := CLK_DIV2_G - 1;
                   end if;
                else
                   -- falling edge of TCK
@@ -158,8 +171,9 @@ begin
                      end if;
                      v.lastBit := true;
                   end if;
-                  v.tck := '0';
-                  v.div := CLK_DIV2_G - 1;
+                  v.tck     := '0';
+                  v.tck_neg := '1';
+                  v.div     := CLK_DIV2_G - 1;
                end if;
             else
                v.div := r.div - 1;
@@ -169,12 +183,13 @@ begin
             if ( dataOutReady /= '0' ) then
                v.oValid := '0';
                if ( r.cnt >= 0 ) then
-                  v.tck    := '1';
-                  v.div    := CLK_DIV2_G - 1;
-                  v.state  := SHIFT_S;
+                  v.tck     := '1';
+                  v.tck_pos := '1';
+                  v.div     := CLK_DIV2_G - 1;
+                  v.state   := SHIFT_S;
                else
-                  v.iReady := '1';
-                  v.state  := IDLE_S;
+                  v.iReady  := '1';
+                  v.state   := IDLE_S;
                end if;
             end if;
 

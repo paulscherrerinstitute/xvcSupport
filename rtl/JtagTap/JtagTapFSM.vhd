@@ -17,6 +17,8 @@ use ieee.numeric_std.all;
 
 entity JtagTapFsm is
   port (
+    clk            : in  std_logic;
+    rst            : in  std_logic;
     tck            : in  std_logic;
     tms            : in  std_logic;
     tdi            : in  std_logic;
