@@ -326,7 +326,7 @@ begin
       REG_IDCODE_G  =>  "1111001001", -- must be of IR_LENGTH_G
       REG_USERCODE_G=>  "1111001000", -- must be of IR_LENGTH_G
       REG_USER_G    =>  "1111000010", -- must be of IR_LENGTH_G
-      IR_VAL_G      =>  "1111010001", -- must be of IR_LENGTH_G
+      IR_VAL_G      =>  "1111110001", -- must be of IR_LENGTH_G; bit(5) must be set ('DONE' bit)!
       IDCODE_VAL_G  =>  x"0424a093"
     )
     port map (
