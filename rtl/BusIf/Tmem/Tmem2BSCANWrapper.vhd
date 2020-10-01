@@ -38,6 +38,8 @@ entity Tmem2BSCANWrapper is
     SEL_OUT     : out std_logic;
     DRCK_OUT    : out std_logic;
 
+    JTCK_OUT    : out std_logic;
+
     irq         : out sl
   );
 end entity Tmem2BSCANWrapper;
@@ -59,6 +61,14 @@ begin
 
     signal tck, tms, tdi, tdo : std_logic;
     signal tck_in             : std_logic;
+    signal tck_in_serdes      : std_logic;
+    signal tck_in_bitbang     : std_logic;
+    signal tms_in_serdes      : std_logic;
+    signal tms_in_bitbang     : std_logic;
+    signal tdi_in_serdes      : std_logic;
+    signal tdi_in_bitbang     : std_logic;
+
+    signal bb_msk             : std_logic;
 
     signal bscn_tdo, bscn_tdi : std_logic;
     signal bscn_rst, bscn_shf : std_logic;
@@ -111,7 +121,8 @@ begin
     generic map (
       DEVICE_G      => DEVICE_G,
       TMEM_CS_G     => TMEM_CS_G,
-      AUX_RO_M_G    => x"ffffffff_fffffee0_00000000_00000000"
+      AUX_INIT_G    => x"00000000_00020000_00000000_00000000",
+      AUX_RO_M_G    => x"ffffffff_7ff8fee0_00000000_00000000"
     )
     port map (
       clk           => clk,
@@ -147,9 +158,29 @@ begin
    serDesInVal          <= auxIn(72);
    auxOut(72)           <= serDesInVal and not serDesInRdy;
    auxOut(73)           <= serDesInVal or (auxIn(73) and not serDesOutVal);
-   auxOut(95 downto 74) <= (others => '0');
+   auxOut(79 downto 74) <= (others => '0');
+   tck_in_bitbang       <= auxIn(80);
+   tms_in_bitbang       <= auxIn(81);
+   tdi_in_bitbang       <= auxIn(82);
+   auxOut(82 downto 80) <= auxIn(82 downto 80);
+   auxOut(83)           <= tdo;
 
-   P_tdoVal : process ( serDesOutVal, tdoVal ) is
+   auxOut(84)           <= tck;
+   auxOut(85)           <= tms;
+   auxOut(86)           <= tdi;
+   auxOut(87)           <= bscn_tdo;
+   auxOut(88)           <= bscn_sel;
+   auxOut(89)           <= bscn_dck;
+   auxOut(90)           <= bscn_upd;
+   auxOut(91)           <= bscn_shf;
+   auxOut(92)           <= bscn_rst;
+   auxOut(93)           <= bscn_tdi;
+   auxOut(94)           <= bscn_cap;
+
+   bb_msk               <= auxIn(95);
+   auxOut(95)           <= auxIn(95);
+
+   P_tdoVal : process ( serDesOutVal, tdoVal, auxIn ) is
    begin
       if ( serDesOutVal = '1' ) then
         auxOut(127 downto 96) <= tdoVal;
@@ -179,9 +210,9 @@ begin
       dataOutValid  => serDesOutVal,
       dataOutReady  => '1',
 
-      tck           => tck_in,
-      tms           => tms,
-      tdi           => tdi,
+      tck           => tck_in_serdes,
+      tms           => tms_in_serdes,
+      tdi           => tdi_in_serdes,
       tdo           => tdo
     );
 
@@ -205,12 +236,16 @@ begin
       mAxisTdo      => axisTdoPri,
       sAxisTdo      => axisTdoSub,
 
-      tck           => tck_in,
-      tms           => tms,
-      tdi           => tdi,
+      tck           => tck_in_serdes,
+      tms           => tms_in_serdes,
+      tdi           => tdi_in_serdes,
       tdo           => tdo
     );
   end generate G_AXIS2JTAG;
+
+  tck_in <= (tck_in_serdes and not bb_msk) or  tck_in_bitbang;
+  tms    <= (tms_in_serdes or      bb_msk) and tms_in_bitbang;
+  tdi    <= (tdi_in_serdes and not bb_msk) or  tdi_in_bitbang;
 
   GEN_NO_TCK_BUF : if ( USE_BUFS_G < 1 ) generate
     tck <= tck_in;
@@ -304,6 +339,8 @@ begin
   RESET_OUT         <= bscn_rst;
   TDI_OUT           <= bscn_tdi;
   CAPTURE_OUT       <= bscn_cap;
+
+  JTCK_OUT <= tck;
 
   end block B_XvcJtagWrapper;
 
