@@ -27,6 +27,12 @@
 # CROSS=/path/to/arm-linux-
 CROSS=
 USR_CPPFLAGS=
+
+CROSS=/opt/eldk-5.2/powerpc-e500v2/sysroots/i686-eldk-linux/usr/bin/ppce500v2-linux-gnuspe/powerpc-e500v2-
+TOSCAINC=-I/afs/psi.ch/user/s/straumann_t/epics/modules/tosca/toscaApi/include/
+TOSCALIB=-L/afs/psi.ch/user/s/straumann_t/epics/modules/tosca/toscaApi/ -Wl,-Bstatic -ltoscaApi -Wl,-Bdynamic
+TMEM_DRIVER_BUILTIN=YES
+
 #
 # so that $(CROSS)$(CXX) points to a valid cross compiler
 #
@@ -53,7 +59,9 @@ endif
 
 -include defs.local.mk
 
-all: xvcSrv $(DRIVERS)
+TARGETS=xvcSrv $(DRIVERS)
+
+all: $(TARGETS)
 
 $(OBJS): xvcDriver.h xvcSrv.h
 
@@ -71,6 +79,7 @@ drvAxiDbgBridgeIP.so: xvcDrvAxiDbgBridgeIP.cc xvcDriver.h xvcDrvAxiDbgBridgeIP.h
 
 drvTmemFifo.so: xvcDrvAxisTmem.cc xvcDrvAxisTmem.h xvcDriver.h
 	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. $(TOSCAINC) -O2 -o $@ $< $(TOSCALIB) -lrt
+
 
 xvcDrvAxisTmem.o: xvcDrvAxisTmem.cc xvcDrvAxisTmem.h xvcDriver.h
 
