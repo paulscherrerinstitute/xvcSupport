@@ -1,0 +1,5 @@
+This directory contains scripts that are useful
+for simulation/debugging.
+
+They can process logged output from 'xvcSrc' to
+generate test vectors.
