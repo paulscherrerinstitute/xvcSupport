@@ -51,11 +51,9 @@ DRVOBJS =
 ifneq ($(TOSCALIB),)
 ifneq ($(TMEM_DRIVER_BUILTIN),YES)
 DRIVERS += drvTmemFifo.so
-DRIVERS += drvSerDesTmem.so
 else
 CPPFLAGS+=-DDEFAULTDRVNAME='"tmem"'
 DRVOBJS += xvcDrvAxisTmem.o
-DRVOBJS += xvcDrvSerDesTmem.o
 endif
 endif
 
@@ -82,12 +80,8 @@ drvAxiDbgBridgeIP.so: xvcDrvAxiDbgBridgeIP.cc xvcDriver.h xvcDrvAxiDbgBridgeIP.h
 drvTmemFifo.so: xvcDrvAxisTmem.cc xvcDrvAxisTmem.h xvcDriver.h
 	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. $(TOSCAINC) -O2 -o $@ $< $(TOSCALIB) -lrt
 
-drvSerDesTmem.so: xvcDrvSerDesTmem.cc xvcDrvSerDesTmem.h xvcDriver.h
-	$(CROSS)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -shared -fPIC -I. $(TOSCAINC) -O2 -o $@ $< $(TOSCALIB) -lrt
 
 xvcDrvAxisTmem.o: xvcDrvAxisTmem.cc xvcDrvAxisTmem.h xvcDriver.h
-
-xvcDrvSerDesTmem.o: xvcDrvSerDesTmem.cc xvcDrvSerDesTmem.h xvcDriver.h
 
 clean:
 	$(RM) xvcSrv $(DRIVERS) $(OBJS) $(DRVOBJS)
