@@ -13,7 +13,7 @@ entity Tmem2BSCANWrapper is
     DEVICE_G    : string  := "VIRTEX6";
     TMEM_CS_G   : std_logic_vector(1 downto 0) := "00"; -- CS to which the block responds
     USE_BUFS_G  : integer := -1;
-    USE_AXIS_G  : boolean := false
+    USE_AXIS_G  : boolean := true
   );
   port (
     clk         : in  sl;
