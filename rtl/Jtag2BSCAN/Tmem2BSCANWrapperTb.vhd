@@ -23,7 +23,7 @@ architecture tb of Tmem2BSCANWrapperTb is
     if ( a < b ) then return a; else return b; end if;
   end function min;
 
-  constant SEQ_LEN_C   : natural :=  4; -- min( iSeq'length, oSeq'length );
+  constant SEQ_LEN_C   : natural :=  min( iSeq'length, oSeq'length );
 
   signal clk : sl      := '0';
   signal rst : sl      := '1';
