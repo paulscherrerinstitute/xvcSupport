@@ -77,14 +77,12 @@ const char   *irqfn = 0;
 
 	switch ( version_ ) {
 		case VERSION_0:
-/*
 			if ( bitBang_ || logBscn_ ) {
 				fprintf( stderr, "Bit-banging not supported for FW interface; disabling\n");
 				bitBang_ = false;
 				logBscn_ = false;
 			}
 		break;
-*/
 
 		case VERSION_1:
 			csrSdes = i32( SDES_CSR_IDX ) & ~SDES_CSR_LRMSK;
@@ -187,6 +185,15 @@ JtagDriverTmemFifo::reset()
 int      set = 0;
 uint32_t csr;
 
+	/* Do this first; resets the internal registers, too! */
+	if ( ! useSdes_ ) {
+		o32( FIFO_CSR_IDX, FIFO_CSR_RST );
+		o32( FIFO_CSR_IDX, 0              );
+		if ( irqFd_ >= 0 ) {
+			o32( FIFO_CSR_IDX, FIFO_CSR_IENI );
+		}
+	}
+
 	if ( version_ == VERSION_1 ) {
 		/* Have bitbang */
 		csr = i32( SDES_CSR_IDX );
@@ -214,13 +221,6 @@ uint32_t csr;
 		o32( SDES_CSR_IDX, csr | SDES_CSR_BB_ENA );
 	}
 
-	if ( ! useSdes_ ) {
-		o32( FIFO_CSR_IDX, FIFO_CSR_RST );
-		o32( FIFO_CSR_IDX, 0              );
-		if ( irqFd_ >= 0 ) {
-			o32( FIFO_CSR_IDX, FIFO_CSR_IENI );
-		}
-	}
 }
 
 uint32_t
