@@ -206,7 +206,7 @@ begin
   U_DUT : entity work.Tmem2BSCANWrapper
     generic map (
       USE_AXIS_G      => false,
-      USE_BUFS_G      => 0
+      USE_BUFS_G      => -1
     )
     port map (
       clk             => clk,

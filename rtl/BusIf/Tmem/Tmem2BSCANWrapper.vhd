@@ -12,7 +12,7 @@ entity Tmem2BSCANWrapper is
   generic (
     DEVICE_G    : string  := "VIRTEX6";
     TMEM_CS_G   : std_logic_vector(1 downto 0) := "00"; -- CS to which the block responds
-    USE_BUFS_G  : natural := 2;
+    USE_BUFS_G  : integer := -1;
     USE_AXIS_G  : boolean := false
   );
   port (
@@ -71,18 +71,12 @@ begin
     signal tdi_in_serdes      : std_logic;
     signal tdi_in_bitbang     : std_logic;
 
-    signal bb_msk             : std_logic;
+    signal bb_ena             : std_logic;
 
     signal bscn_tdo, bscn_tdi : std_logic;
     signal bscn_rst, bscn_shf : std_logic;
     signal bscn_upd, bscn_cap : std_logic;
     signal bscn_sel, bscn_dck : std_logic;
-
-    signal bscn_tdo1, bscn_tdi1 : std_logic;
-    signal bscn_rst1, bscn_shf1 : std_logic;
-    signal bscn_upd1, bscn_cap1 : std_logic;
-    signal bscn_sel1, bscn_dck1 : std_logic;
-
 
     signal ctrl0              : std_logic_vector(35 downto 0);
     signal trig               : std_logic_vector( 7 downto 0);
@@ -118,8 +112,16 @@ begin
 
     signal numBits            : natural range 0 to 8*W_C - 1;
 
+    signal tck_posedge        : std_logic;
+    signal tck_negedge        : std_logic;
+    signal tck_posedge_sdes   : std_logic;
+    signal tck_negedge_sdes   : std_logic;
+    signal tck_posedge_bb     : std_logic;
+    signal tck_negedge_bb     : std_logic;
+    signal tck_bb_dly         : std_logic := '0';
+
     function AUX_RO_M_F return std_logic_vector is
-      variable v : std_logic_vector(auxIn'range);
+      variable v : std_logic_vector(127 downto 0);
     begin
       v := x"ffffffff_7ff8fee0_00000000_00000000";
       if ( USE_AXIS_G ) then
@@ -128,7 +130,10 @@ begin
       return v;
     end function AUX_RO_M_F;
 
-    constant  AUX_INIT_C      : std_logic_vector(auxIn'range) := x"00000000_00020000_00000000_00000000";
+    function muxSlv(sel, a, b: std_logic) return std_logic is
+    begin
+      return (a and sel) or (b and not sel);
+    end function muxSlv;
 
   begin
 
@@ -136,7 +141,6 @@ begin
     generic map (
       DEVICE_G      => DEVICE_G,
       TMEM_CS_G     => TMEM_CS_G,
-      AUX_INIT_G    => AUX_INIT_C,
       AUX_RO_M_G    => AUX_RO_M_F,
       VERSION_G     => VERSION_C
     )
@@ -183,15 +187,17 @@ begin
    auxOut(85)           <= tms;
    auxOut(86)           <= tdi;
    auxOut(87)           <= bscn_tdo;
+
    auxOut(88)           <= bscn_sel;
    auxOut(89)           <= bscn_dck;
    auxOut(90)           <= bscn_upd;
    auxOut(91)           <= bscn_shf;
+
    auxOut(92)           <= bscn_rst;
    auxOut(93)           <= bscn_tdi;
    auxOut(94)           <= bscn_cap;
 
-   bb_msk               <= auxIn(95);
+   bb_ena               <= auxIn(95);
    auxOut(95)           <= auxIn(95);
 
    G_SERDES : if ( not USE_AXIS_G ) generate
@@ -215,6 +221,8 @@ begin
     port map (
       clk           => clk,
       rst           => rst,
+      tck_posedge   => tck_posedge_sdes,
+      tck_negedge   => tck_negedge_sdes,
 
       numBits       => numBits,
       dataInTms     => auxIn(31 downto  0),
@@ -246,6 +254,9 @@ begin
       axisClk       => clk,
       axisRst       => rst,
 
+      tck_posedge   => tck_posedge_sdes,
+      tck_negedge   => tck_negedge_sdes,
+
       mAxisReq      => axisTmsTdiPri,
       sAxisReq      => axisTmsTdiSub,
 
@@ -259,9 +270,25 @@ begin
     );
   end generate G_AXIS2JTAG;
 
-  tck_in <= (tck_in_serdes and not bb_msk) or  tck_in_bitbang;
-  tms    <= (tms_in_serdes or      bb_msk) and tms_in_bitbang;
-  tdi    <= (tdi_in_serdes and not bb_msk) or  tdi_in_bitbang;
+  P_TCK_DLY : process ( clk ) is
+  begin
+    if ( rising_edge( clk ) ) then
+      if ( rst = '1' ) then
+        tck_bb_dly <= '0';
+      else
+        tck_bb_dly <= tck_in_bitbang;
+      end if;
+    end if;
+  end process P_TCK_DLY;
+
+  tck_posedge_bb <= tck_in_bitbang and not tck_bb_dly;
+  tck_negedge_bb <= not tck_in_bitbang and tck_bb_dly;
+
+  tck_in         <= muxSlv( bb_ena, tck_in_bitbang, tck_in_serdes    );
+  tms            <= muxSlv( bb_ena, tms_in_bitbang, tms_in_serdes    );
+  tdi            <= muxSlv( bb_ena, tdi_in_bitbang, tdi_in_serdes    );
+  tck_posedge    <= muxSlv( bb_ena, tck_posedge_bb, tck_posedge_sdes );
+  tck_negedge    <= muxSlv( bb_ena, tck_negedge_bb, tck_negedge_sdes );
 
   GEN_NO_TCK_BUF : if ( USE_BUFS_G < 1 ) generate
     tck <= tck_in;
@@ -322,41 +349,48 @@ begin
 
   U_Bscan1 : entity work.Jtag2Bscan
     generic map (
-      IR_LENGTH_G   =>  10,
-      REG_IDCODE_G  =>  "1111001001", -- must be of IR_LENGTH_G
-      REG_USERCODE_G=>  "1111001000", -- must be of IR_LENGTH_G
-      REG_USER_G    =>  "1111000010", -- must be of IR_LENGTH_G
-      IR_VAL_G      =>  "1111110001", -- must be of IR_LENGTH_G; bit(5) must be set ('DONE' bit)!
-      IDCODE_VAL_G  =>  x"0424a093"
+      IR_LENGTH_G    =>  10,
+      REG_IDCODE_G   =>  "1111001001", -- must be of IR_LENGTH_G
+      REG_USERCODE_G =>  "1111001000", -- must be of IR_LENGTH_G
+      REG_USER_G     =>  "1111000010", -- must be of IR_LENGTH_G
+      IR_VAL_G       =>  "1111110001", -- must be of IR_LENGTH_G; bit(5) must be set ('DONE' bit)!
+      IDCODE_VAL_G   =>  x"0424a093",
+      TCK_IS_CLOCK_G =>  (USE_BUFS_G >= 0)
     )
     port map (
-      JTCK          => tck,
-      JTMS          => tms,
-      JTDI          => tdi,
-      JTDO          => tdo,
+      clk            => clk,
+      rst            => rst,
+
+      JTCK_POSEDGE   => tck_posedge,
+      JTCK_NEGEDGE   => tck_negedge,
+
+      JTCK           => tck,
+      JTMS           => tms,
+      JTDI           => tdi,
+      JTDO           => tdo,
       
-      TDO           => bscn_tdo,
-      SEL           => bscn_sel,
-      DRCK          => drck_loc,
-      DRCK_SEL      => drck_sel,
-      UPDATE        => updt_loc,
-      UPDATE_SEL    => updt_sel,
-      SHIFT         => bscn_shf,
-      RESET         => bscn_rst,
-      TDI           => bscn_tdi,
-      CAPTURE       => bscn_cap
+      TDO            => bscn_tdo,
+      SEL            => bscn_sel,
+      DRCK           => drck_loc,
+      DRCK_SEL       => drck_sel,
+      UPDATE         => updt_loc,
+      UPDATE_SEL     => updt_sel,
+      SHIFT          => bscn_shf,
+      RESET          => bscn_rst,
+      TDI            => bscn_tdi,
+      CAPTURE        => bscn_cap
     );
 
-  bscn_tdo          <= TDO_IN;
-  SEL_OUT           <= bscn_sel;
-  DRCK_OUT          <= bscn_dck;
-  UPDATE_OUT        <= bscn_upd;
-  SHIFT_OUT         <= bscn_shf;
-  RESET_OUT         <= bscn_rst;
-  TDI_OUT           <= bscn_tdi;
-  CAPTURE_OUT       <= bscn_cap;
+  bscn_tdo           <= TDO_IN;
+  SEL_OUT            <= bscn_sel;
+  DRCK_OUT           <= bscn_dck;
+  UPDATE_OUT         <= bscn_upd;
+  SHIFT_OUT          <= bscn_shf;
+  RESET_OUT          <= bscn_rst;
+  TDI_OUT            <= bscn_tdi;
+  CAPTURE_OUT        <= bscn_cap;
 
-  JTCK_OUT <= tck;
+  JTCK_OUT           <= tck;
 
   end block B_XvcJtagWrapper;
 

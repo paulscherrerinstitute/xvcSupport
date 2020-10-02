@@ -83,11 +83,11 @@ architecture Impl of JtagTapIR is
     dr_lst     => 0
   );
 
-  signal rn   : RegNType;
-  signal rnin : RegNType := REG_N_INIT_C;
+  signal rn   : RegNType := REG_N_INIT_C;
+  signal rnin : RegNType;
 
-  signal rp   : RegPType;
-  signal rpin : RegPType := REG_P_INIT_C;
+  signal rp   : RegPType := REG_P_INIT_C;
+  signal rpin : RegPType;
 
 begin
 

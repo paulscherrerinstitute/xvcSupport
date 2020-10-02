@@ -20,14 +20,15 @@ architecture rtl of Jtag2BSCANsTb is
     if ( a < b ) then return a; else return b; end if;
   end function min;
 
-  constant USE_BUFG             : boolean   := true;
+  constant TCK_IS_CLOCK_C : boolean := false;
+  constant USE_BUFG       : boolean := true and TCK_IS_CLOCK_C;
 
-  constant CLK_DIV2_C     : natural := 2;
+  constant CLK_DIV2_C     : natural := 5;
 
   constant PART_NAME_C    : string                                     := "lx130t";
 
-  constant SAMPLETIME     : time := 20 ns;
-  constant HALFPERIOD     : time := 30 ns;
+  constant HALFPERIOD     : time :=  5 ns;
+  constant SAMPLETIME     : time :=  13 ns;
 
   constant IR_LENGTH_C    : natural                                    := 10;
   constant REG_IDCODE_C   : std_logic_vector(IR_LENGTH_C - 1 downto 0) := "1111001001"; -- must be of IR_LENGTH_C
@@ -125,7 +126,11 @@ architecture rtl of Jtag2BSCANsTb is
 
   signal cnt                    : natural   := 0;
 
-  signal jtck, jtms, jtdi, jtdo : std_logic;
+  signal jtck_in                : std_logic;
+  signal jtck                   : std_logic := '0';
+  signal jtms, jtdi, jtdo       : std_logic;
+  signal jtck_negedge           : std_logic;
+  signal jtck_posedge           : std_logic;
   signal jtdocmp                : std_logic;
 
   signal SEL    , SEL_CMP       : std_logic;
@@ -141,8 +146,6 @@ architecture rtl of Jtag2BSCANsTb is
   signal UPDATE_SEL             : std_logic;
 
   signal TDO                    : std_logic := '0';
-
-  signal togl                   : std_logic := '1';
 
   signal cntcmp                 : natural   := 0;
 
@@ -164,13 +167,6 @@ begin
     wait;
   end process P_CLK;
 
-  P_TGL : process (jtck) is
-  begin
-    if (rising_edge(jtck)) then
-      togl <= not togl;
-    end if;
-  end process P_TGL;
-
   TDO <= 'X' when sidx >= SEQ_LEN_C else oSeq(sidx).tdo(sbit);
 
   P_SIMTDO : process ( jtck ) is
@@ -187,6 +183,13 @@ begin
 
   tdoVecCmp <=  oSeq(oidx).tdo;
   nbitsTdo  <=  oSeq(oidx).nbits;
+
+  P_DLY : process (jtck_in) is
+  begin
+    if ( rising_edge( clk ) or true ) then
+      jtck <= jtck_in;
+    end if;
+  end process P_DLY;
 
   P_CNT : process (clk) is
   begin
@@ -245,6 +248,7 @@ begin
       end if;
       if ( SEL /= SEL_CMP ) then
         -- NOTE: SEL mismatch happens; BSCANE2 deasserts on posedge
+wait for 30 ns;
         report "SEL mismatch" severity failure;
       end if;
       if ( RESET /= RESET_CMP ) then
@@ -292,8 +296,9 @@ begin
       CLK_DIV2_G => CLK_DIV2_C
     )
     port map (
-      clk => clk,
-      rst => rst,
+      clk               => clk,
+      rst               => rst,
+
       numBits           => nbits,
       dataInTms         => tmsVec,
       dataInTdi         => tdiVec,
@@ -304,7 +309,9 @@ begin
       dataOutValid      => oValid,
       dataOutReady      => oReady,
 
-      tck               => jtck,
+      tck               => jtck_in,
+      tck_posedge       => jtck_posedge,
+      tck_negedge       => jtck_negedge,
       tms               => jtms,
       tdi               => jtdi,
       tdo               => jtdo
@@ -318,10 +325,15 @@ begin
       REG_USER_G     => REG_USER_C,
       IR_VAL_G       => IR_VAL_C,
       IDCODE_VAL_G   => IDCODE_VAL_C,
-      USERCODE_VAL_G => USERCODE_VAL_C
+      USERCODE_VAL_G => USERCODE_VAL_C,
+      TCK_IS_CLOCK_G => TCK_IS_CLOCK_C
     )
     port map (
+      clk            => clk,
+      rst            => rst,
       JTCK           => jtck,
+      JTCK_POSEDGE   => jtck_posedge,
+      JTCK_NEGEDGE   => jtck_negedge,
       JTMS           => jtms,
       JTDI           => jtdi,
       JTDO           => jtdo,
@@ -436,7 +448,6 @@ begin
       end if;
     end if;
   end process P_DBG_U;
-
 
 end architecture rtl;
 

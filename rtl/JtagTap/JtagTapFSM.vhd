@@ -37,7 +37,8 @@ entity JtagTapFsm is
     exit1          : out std_logic;
     pause          : out std_logic;
     exit2          : out std_logic;
-    update         : out std_logic
+    update         : out std_logic;
+    nextStateTLR   : out std_logic
   );
 end entity JtagTapFsm;
 
@@ -174,7 +175,7 @@ begin
   end process P_COMB;  
 
   G_TCK : if ( TCK_IS_CLOCK_G ) generate
-    P_SEQ : process (tck) is
+    P_SEQ : process ( tck ) is
     begin
       if ( rising_edge( tck ) ) then
         r <= rin;
@@ -183,7 +184,7 @@ begin
   end generate G_TCK;
 
   G_TCK_CE : if ( not TCK_IS_CLOCK_G ) generate
-    P_SEQ : process (clk) is
+    P_SEQ : process ( clk ) is
     begin
       if ( rising_edge( clk ) ) then
         if ( rst = '1' ) then
@@ -206,5 +207,6 @@ begin
   pause          <= r.scanSubState( PAUSE_C            );
   exit2          <= r.scanSubState( EXIT2_C            );
   update         <= r.scanSubState( UPDATE_C           );
+  nextStateTLR   <= rin.primaryState( TEST_LOGIC_RESET_C );
 
 end architecture Impl;
