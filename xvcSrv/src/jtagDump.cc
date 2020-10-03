@@ -1,5 +1,52 @@
 #include <jtagDump.h>
 #include <stdio.h>
+#include <vector>
+
+JtagRegType::JtagRegType()
+: bitpos_(0)
+{
+	v_.push_back(0ULL);
+}
+
+void
+JtagRegType::clear()
+{
+	v_.clear();
+	v_.push_back(0ULL);
+	bitpos_ = 0;
+}
+
+unsigned
+JtagRegType::getNumBits() const
+{
+	return (v_.size() - 1) * 8 * sizeof(VType::value_type) + bitpos_;
+}
+
+void
+JtagRegType::print(FILE *f) const
+{
+	VType::const_reverse_iterator it = v_.rbegin();
+	fprintf(f, "0x");
+	if ( bitpos_ > 0 ) {
+		fprintf(f,"%llx",(unsigned long long) *it);
+	}
+	while ( ++it != v_.rend() ) {
+		fprintf(f,"%016llx", (unsigned long long) *it);
+	}
+}
+
+void
+JtagRegType::addBit(int b)
+{
+	if ( b ) {
+		v_.back() |= (1<<bitpos_);
+	}
+	bitpos_++;
+	if ( bitpos_ >= 8*sizeof(VType::value_type) ) {
+		bitpos_ = 0;
+		v_.push_back( 0ULL );
+	}
+}
 
 void
 JtagState_TestLogicReset::advance(JtagDumpCtx *context, int tms, int tdo, int tdi)
@@ -8,7 +55,6 @@ JtagState_TestLogicReset::advance(JtagDumpCtx *context, int tms, int tdo, int td
 		context->changeState( &context->state_RunTestIdle_ );
 	}
 }
-
 
 void
 JtagState_RunTestIdle::advance(JtagDumpCtx *context, int tms, int tdo, int tdi)
@@ -80,8 +126,11 @@ void
 JtagState_UpdateDR::advance(JtagDumpCtx *context, int tms, int tdo, int tdi)
 {
 unsigned    bits = context->getDRLen();
-const char *mrk  = bits > sizeof(JtagRegType)*8 ? "*" : "";
-	fprintf(stderr, "%s: DR[IR = %llx] sent: 0x%s%llx, recv: 0x%s%llx (total %d bits)\n", getName(), context->getIRo(), mrk, context->getDRo(), mrk, context->getDRi(), bits);
+	fprintf(stderr, "%s: DR[IR = ", getName());
+	context->getIRo()->print( stderr );
+	fprintf(stderr, "], nbits: %lu\n", bits);
+	fprintf(stderr, "  sent: "); context->getDRo()->print( stderr ); fprintf(stderr,"\n");
+	fprintf(stderr, "  rcvd: "); context->getDRi()->print( stderr ); fprintf(stderr,"\n");
 	if ( tms ) {
 		context->changeState( &context->state_SelectDRScan_ );
 	} else {
@@ -151,8 +200,11 @@ void
 JtagState_UpdateIR::advance(JtagDumpCtx *context, int tms, int tdo, int tdi)
 {
 unsigned    bits = context->getIRLen();
-const char *mrk  = bits > sizeof(JtagRegType)*8 ? "*" : "";
-	fprintf(stderr, "%s: IR sent: 0x%llx%s, recv: 0x%s%llx (total %d bits)\n", getName(), context->getIRo(), mrk, mrk, context->getIRi(), bits);
+	fprintf(stderr, "%s: IR sent: ", getName());
+	context->getIRo()->print( stderr );
+	fprintf(stderr, ", recv: ");
+	context->getIRi()->print( stderr );
+	fprintf(stderr, " (nbits: %lu)\n", bits);
 	if ( tms ) {
 		context->changeState( &context->state_SelectDRScan_ );
 	} else {
@@ -168,92 +220,65 @@ JtagDumpCtx::JtagDumpCtx()
 void
 JtagDumpCtx::clearDR()
 {
-	dri_ = 0;
-	dro_ = 0;
-	drm_ = 1;
-	drl_ = 0;
+	dri_.clear();
+	dro_.clear();
 }
 
 void
 JtagDumpCtx::clearIR()
 {
-	iri_ = 0;
-	iro_ = 0;
-    irm_ = 1;
-	irl_ = 0;
+	iri_.clear();
+	iro_.clear();
 }
 
 unsigned
 JtagDumpCtx::getDRLen()
 {
-	return drl_;
+	return dri_.getNumBits();
 }
 
 unsigned
 JtagDumpCtx::getIRLen()
 {
-	return irl_;
+	return iri_.getNumBits();
 }
 
 void
 JtagDumpCtx::shiftDR(int tdo, int tdi)
 {
-#if 0
-	if ( 0 == drm_ ) {
-		fprintf(stderr,"WARNING: DR contents too long; upper bits not captured\n");
-	}
-#endif
-	if ( tdo )
-		dro_ |= drm_;
-	if ( tdi )
-		dri_ |= drm_;
-	drm_ <<= 1;
-	drl_++;
+	dro_.addBit( tdo );
+	dri_.addBit( tdi );
 }
 
 void
 JtagDumpCtx::shiftIR(int tdo, int tdi)
 {
-const JtagRegType msb = (((JtagRegType)1) << (sizeof(JtagRegType)*8 - 1));
-	if ( 0 == irm_ ) {
-		fprintf(stderr,"WARNING: IR contents too long; upper bits not captured\n");
-		iro_ = iro_ >> 1;
-		if ( tdo ) {
-			iro_ |= msb;
-		} else {
-			iro_ &= ~msb;
-		}
-	}
-	if ( tdo )
-		iro_ |= irm_;
-	if ( tdi )
-		iri_ |= irm_;
-	irm_ <<= 1;
-	irl_++;
+	iro_.addBit( tdo );
+	iri_.addBit( tdi );
 }
 
-JtagRegType
+const JtagRegType *
 JtagDumpCtx::getDRi()
 {
-	return dri_;
+	return &dri_;
 }
 
-JtagRegType
+const JtagRegType *
 JtagDumpCtx::getDRo()
 {
-	return dro_;
+	return &dro_;
 }
 
-JtagRegType
+const JtagRegType *
 JtagDumpCtx::getIRi()
 {
-	return iri_;
+	return &iri_;
 }
 
-JtagRegType
+const JtagRegType *
 JtagDumpCtx::getIRo()
 {
-	return iro_;
+	return &iro_;
 }
 
 void
@@ -276,22 +301,24 @@ fprintf(stderr, "A(%d)\n", !!tms);
 	state_->advance(this, tms, tdo, tdi);
 }
 
-void
-JtagDumpCtx::processBuf(int nbits, unsigned char *tmsb, unsigned char *tdob, unsigned char *tdib)
+unsigned
+JtagDumpCtx::processBuf(int nbits, unsigned char *tmsb, unsigned char *tdob, unsigned char *tdib, const JtagState *until)
 {
 unsigned n,m;
 
 	while ( nbits > 0 ) {
 		n = 1 << ( nbits < 8 ? nbits : 8 );
 		for ( m = 1; m < n; m <<= 1 ) {
+			if ( until && ( *state_ == *until ) ) {
+				return nbits;
+			} 
 			advance( ((*tmsb) & m), ((*tdob) & m), ((*tdib) & m) );
+			nbits--;
 		}
 
 		tmsb++;
 		tdob++;
 		tdib++;
-		
-		nbits -= 8;
 	}
-
+	return 0;
 }
