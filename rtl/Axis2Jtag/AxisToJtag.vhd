@@ -189,6 +189,8 @@ entity AxisToJtag is
       -- JTAG
 
       tck              : out sl;
+      tck_posedge      : out sl;
+      tck_negedge      : out sl;
       tdi              : out sl;
       tms              : out sl;
       tdo              : in  sl
@@ -460,6 +462,8 @@ begin
          running         => s.coreRunning,
 
          tck             => tck,
+         tck_posedge     => tck_posedge,
+         tck_negedge     => tck_negedge,
          tdi             => tdi,
          tms             => tms,
          tdo             => tdo

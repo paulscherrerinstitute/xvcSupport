@@ -11,7 +11,6 @@ set xvc_support_fw_files { \
   "rtl/Jtag2BSCAN/Jtag2BSCAN.vhd" \
   "rtl/BusIf/Tmem/Axis2TmemFifo.vhd" \
   "rtl/BusIf/Tmem/Tmem2BSCANWrapper.vhd" \
-  "rtl/BusIf/Tmem/Tmem2BSCANConstraints.ucf" \
 }
 
 set xvc_support_location "[file dirname [info script]]"

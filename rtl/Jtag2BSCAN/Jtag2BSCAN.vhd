@@ -13,9 +13,15 @@ entity Jtag2BSCAN is
     REG_USER_G     : std_logic_vector              := "000010"; -- must be of IR_LENGTH_G
     IR_VAL_G       : std_logic_vector              := "110101"; -- must be of IR_LENGTH_G
     IDCODE_VAL_G   : std_logic_vector(31 downto 0) := x"22228093";
-    USERCODE_VAL_G : std_logic_vector(31 downto 0) := x"ffffffff"
+    USERCODE_VAL_G : std_logic_vector(31 downto 0) := x"ffffffff";
+    TCK_IS_CLOCK_G : boolean                       := true
   );
   port (
+    clk            : in  std_logic := '0';
+    rst            : in  std_logic := '0';
+    JTCK_POSEDGE   : in  std_logic := '0';
+    JTCK_NEGEDGE   : in  std_logic := '0';
+
     JTCK           : in  std_logic;
     JTMS           : in  std_logic;
     JTDI           : in  std_logic;
@@ -36,23 +42,24 @@ end entity Jtag2BSCAN;
 
 architecture Impl of Jtag2BSCAN is
 
-  signal testLogicResetLoc : std_logic;
-  signal scanDRLoc         : std_logic;
-  signal scanIRLoc         : std_logic;
-  signal captureLoc        : std_logic;
-  signal shiftLoc          : std_logic;
-  signal updateLoc         : std_logic;
+  signal testLogicResetLoc     : std_logic;
+  signal scanDRLoc             : std_logic;
+  signal scanIRLoc             : std_logic;
+  signal captureLoc            : std_logic;
+  signal shiftLoc              : std_logic;
+  signal updateLoc             : std_logic;
 
-  signal captureIRLoc      : std_logic;
-  signal shiftIRLoc        : std_logic;
-  signal updateIRLoc       : std_logic;
-  signal captureDRLoc      : std_logic;
-  signal shiftDRLoc        : std_logic;
-  signal updateDRLoc       : std_logic;
+  signal captureIRLoc          : std_logic;
+  signal shiftIRLoc            : std_logic;
+  signal updateIRLoc           : std_logic;
+  signal captureDRLoc          : std_logic;
+  signal shiftDRLoc            : std_logic;
+  signal updateDRLoc           : std_logic;
 
-  signal selUSERTap        : std_logic;
-  signal selUSERLoc        : std_logic;
-  signal tapTdoLoc         : std_logic;
+  signal selUSERTap            : std_logic;
+  signal tapTdoLoc             : std_logic;
+
+  signal testLogicResetPredict : std_logic;
 
   type RegType is record
     tdo        : std_logic;
@@ -77,7 +84,14 @@ architecture Impl of Jtag2BSCAN is
 begin
 
   U_TapFsm : entity work.JtagTapFSM
+    generic map (
+      TCK_IS_CLOCK_G  => TCK_IS_CLOCK_G
+    )
     port map (
+      clk             => clk,
+      rst             => rst,
+      tck_posedge     => JTCK_POSEDGE,
+      tck_negedge     => JTCK_NEGEDGE,
       tck             => JTCK,
       tms             => JTMS,
       tdi             => JTDI,
@@ -91,7 +105,8 @@ begin
       exit1           => open,
       pause           => open,
       exit2           => open,
-      update          => updateLoc
+      update          => updateLoc,
+      nextStateTLR    => testLogicResetPredict
     );
 
   captureIRLoc <= (captureLoc and scanIRLoc);
@@ -110,9 +125,14 @@ begin
       REG_USER_G     => REG_USER_G,
       IR_VAL_G       => IR_VAL_G,
       IDCODE_VAL_G   => IDCODE_VAL_G,
-      USERCODE_VAL_G => USERCODE_VAL_G
+      USERCODE_VAL_G => USERCODE_VAL_G,
+      TCK_IS_CLOCK_G => TCK_IS_CLOCK_G
     )
     port map (
+      clk            => clk,
+      rst            => rst,
+      tck_posedge    => JTCK_POSEDGE,
+      tck_negedge    => JTCK_NEGEDGE,
       tck            => JTCK,
       tdi            => JTDI,
       testLogicReset => testLogicResetLoc,
@@ -155,31 +175,15 @@ begin
     rin <= v;
   end process P_COMB;
 
-  selUSERLoc <= r.selUSER and not testLogicResetLoc;
-
-  P_SEQ : process ( JTCK ) is
+  G_TCK : if ( TCK_IS_CLOCK_G ) generate
+    signal selUSERLoc        : std_logic;
   begin
-    if ( falling_edge( JTCK ) ) then
-      r <= rin;
-    end if;
-  end process P_SEQ;
-
-  CAPTURE <= r.captureDR;
-  SHIFT   <= r.shiftDR;
-  -- original BSCANE2 simulation deasserts on the positive clock edge when IR is
-  -- updated:
-  --
-  --   UPDATE <= r.updateDR and updateDrLoc
-  --
-  -- however, we want to minimize the combinatorial logic here
-  -- because ICON seems to use UPDATE as a clock and any combinatorial
-  -- input seems to be treated as a different input clock (which we'd have
-  -- to constrain...)
-  UPDATE  <= r.updateDR; -- and updateDRLoc;
-  SEL     <= selUSERLoc;
-  RESET   <= testLogicResetLoc;
-  TDI     <= JTDI;
-  JTDO    <= r.tdo;
+    P_SEQ : process ( JTCK ) is
+    begin
+      if ( falling_edge( JTCK ) ) then
+        r <= rin;
+      end if;
+    end process P_SEQ;
 
   -- FIXME: should be able to use a clock buffer but this is not trivial
   --        because the muxing signals change on the same clock edges
@@ -197,9 +201,62 @@ begin
   --        while selUSERLoc changes on negative clock edges it is guaranteed
   --        to never switch concurrently with captureDRLoc, shiftDRLoc and thus
   --        there is no chance for glitches.
+    selUSERLoc <= r.selUSER and not testLogicResetLoc;
+
+    DRCK       <= (JTCK and r.drckSel ) or (not r.drckSel and selUSERLoc);
+    SEL        <= selUSERLoc;
+
+  -- original BSCANE2 simulation deasserts on the positive clock edge when IR is
+  -- updated:
+  --
+  --   UPDATE <= r.updateDR and updateDrLoc
+  --
+  -- however, we want to minimize the combinatorial logic here
+  -- because ICON seems to use UPDATE as a clock and any combinatorial
+  -- input seems to be treated as a different input clock (which we'd have
+  -- to constrain...)
+    UPDATE     <= r.updateDR; -- and updateDRLoc;
+
+
+  end generate G_TCK;
+
+  G_TCK_CE : if ( not TCK_IS_CLOCK_G ) generate
+  begin
+
+    P_SEQ : process ( clk ) is
+    begin
+      if ( rising_edge( clk ) ) then
+        if ( rst = '1' ) then
+          r      <= REG_INIT_C;
+          DRCK   <= '0';
+          SEL    <= '0';
+          UPDATE <= '0';
+        elsif ( (JTCK_NEGEDGE = '1') or (JTCK_POSEDGE = '1') ) then
+          if ( (JTCK_NEGEDGE = '1') ) then
+            r      <= rin;
+            UPDATE <= rin.updateDR;
+            SEL    <= rin.selUSER;
+          else
+            UPDATE <= '0';
+          end if;
+          DRCK     <= (JTCK and rin.drckSel ) or (not rin.drckSel and rin.selUSER);
+          if ( testLogicResetPredict = '1' and JTCK_POSEDGE = '1' ) then
+              SEL  <= '0';
+              DRCK <= '0';
+           end if;
+        end if;
+      end if;
+    end process P_SEQ;
+
+  end generate G_TCK_CE;
+
+  CAPTURE <= r.captureDR;
+  SHIFT   <= r.shiftDR;
+  RESET   <= testLogicResetLoc;
+  TDI     <= JTDI;
+  JTDO    <= r.tdo;
 
   DRCK_SEL   <= r.drckSel;
-  DRCK       <= (JTCK and r.drckSel ) or (not r.drckSel and selUSERLoc);
   UPDATE_SEL <= updateDRLoc;
 
 end architecture Impl;
