@@ -292,7 +292,7 @@ The driver recognizes the following options (given to `xvcSrv` after `--`)
 
 #### TMEM Transport Driver
 
-This driver supports a `Tmem2ICONWrapper` somewhere in the TOSCA2 memory map.
+This driver supports a `Tmem2BscanWrapper` somewhere in the TOSCA2 memory map.
 The target string must identify the TOSCA2 address-space and offset where
 the firmware registers can be found:
 
@@ -381,24 +381,24 @@ is un-checked then the `ICON` is wired to the hardware JTAG controller and not
 accessible from software (unless we'd connect a hardware cable but then you would
 not be reading this).
 
-The last missing piece is the `Jtag2BSCAN` entity which drives the BSCAN port
+The last missing piece is the `Jtag2Bscan` entity which drives the BSCAN port
 from JTAG. Thus, under ISE you have a firmware stack:
 
   - bus/Axi-Stream interface (e.g., `Axis2TmemFifo`)
   - Axi-Stream to JTAG (`AxisToJtag`)
-  - JTAG to BSCAN (`Jtag2BSCAN`)
+  - JTAG to BSCAN (`Jtag2Bscan`)
   - BSCAN to ILA control port (Xilinx `ICON` core with external `BSCAN` interface)
   - ILA with control port
 
-The `Jtag2BSCAN` module emulates a xilinx `BSCANE2` component and TAP controller(I got valuable inspiration from [bscan_equiv.v](https://sites.google.com/site/dbarawn/fpga-stuff/xilinxbscanequivalentforchipscopeuse)).
+The `Jtag2Bscan` module emulates a xilinx `BSCANE2` component and TAP controller
+(I got valuable inspiration from
+[bscan_equiv.v](https://sites.google.com/site/dbarawn/fpga-stuff/xilinxbscanequivalentforchipscopeuse)).
 While the author seems to get away with emulating a Spartan device (which
 boils down to supplying the correct IDCODE and using the correct IR length)
 I found that ChipScope would not find the ILAs on our Virtex6 devices unless
 I let the TAP controller emulate a Virtex6. I mention this here in case
 anyone ever uses the code on a different device: you may need to change
 the relevant generics...
-
-In addition to all the RTL files make sure you add the UCF constraints to your project!
 
 #### Connecting ChipScope
 
@@ -422,15 +422,16 @@ uses the vivado debug bridge as described above).
 I had problems generating the ICON (v1.06a) and ILA (v1.05a) cores which consistently
 would produce an error. Googling around reveals that this is not uncommon. The work-around
 is to enable the "All IP Versions" checkbox and use the previous version (ICON v1.05a and
-ILA v1.04a, respectively, worked for me).
+ILA v1.04a, respectively, worked for me). It seems this problem is due to java installation
+issues - YMMV.
   
 
 #### PSI Note
 
-For the IFC board there is a `Tmem2ICONWrapper` wrapper which glues all the pieces together and which
+For the IFC board there is a `Tmem2BscanWrapper` wrapper which glues all the pieces together and which
 can be hooked to any place in `TUSER` memory.
 
-E.g., if you connect `Tmem2ICONWrapper` to the `CS2` window of `TUSER2` at offset `0x00000000` then
+E.g., if you connect `Tmem2BscanWrapper` to the `CS2` window of `TUSER2` at offset `0x00000000` then
 you can start `xvcSrv` on the IFC board:
 
     xvcSrv -D tmem -t USER2:0x200000
