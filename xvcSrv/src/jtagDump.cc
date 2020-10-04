@@ -128,7 +128,7 @@ JtagState_UpdateDR::advance(JtagDumpCtx *context, int tms, int tdo, int tdi)
 unsigned    bits = context->getDRLen();
 	fprintf(stderr, "%s: DR[IR = ", getName());
 	context->getIRo()->print( stderr );
-	fprintf(stderr, "], nbits: %lu\n", bits);
+	fprintf(stderr, "], nbits: %u\n", bits);
 	fprintf(stderr, "  sent: "); context->getDRo()->print( stderr ); fprintf(stderr,"\n");
 	fprintf(stderr, "  rcvd: "); context->getDRi()->print( stderr ); fprintf(stderr,"\n");
 	if ( tms ) {
@@ -204,7 +204,7 @@ unsigned    bits = context->getIRLen();
 	context->getIRo()->print( stderr );
 	fprintf(stderr, ", recv: ");
 	context->getIRi()->print( stderr );
-	fprintf(stderr, " (nbits: %lu)\n", bits);
+	fprintf(stderr, " (nbits: %u)\n", bits);
 	if ( tms ) {
 		context->changeState( &context->state_SelectDRScan_ );
 	} else {

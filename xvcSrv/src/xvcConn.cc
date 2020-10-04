@@ -21,13 +21,14 @@
 
 XvcConn::XvcConn( int sd, JtagDriver *drv, unsigned long maxVecLen )
 : drv_       ( drv         ),
+  ld_        ( sd          ),
   maxVecLen_ ( maxVecLen   ),
   supVecLen_ ( 0           )
 {
 socklen_t sz = sizeof(peer_);
 
 	// RAII for the sd_
-	if ( (sd_ = ::accept(sd, (struct sockaddr*)&peer_, &sz) ) < 0 ) {
+	if ( (sd_ = ::accept(ld_, (struct sockaddr*)&peer_, &sz) ) < 0 ) {
 		throw SysErr("Unable to accept connection");
 	}
 }
@@ -35,6 +36,39 @@ socklen_t sz = sizeof(peer_);
 XvcConn::~XvcConn()
 {
 	::close( sd_ );
+}
+
+ssize_t
+XvcConn::read(void *buf, size_t l)
+{
+fd_set fds;
+int    nfds = (sd_ > ld_ ? sd_ : ld_) + 1;
+int    got;
+
+	FD_ZERO( &fds );
+	FD_SET(  sd_, &fds );
+	FD_SET(  ld_, &fds );
+
+	do {
+
+	    if ( (got = select( nfds, &fds, 0, 0, 0 )) ) {
+			throw SysErr("select failed");
+		}
+
+		if ( FD_ISSET(ld_, &fds) ) {
+			struct sockaddr_in peer;
+			socklen_t          asiz  = sizeof(peer);
+			int                newsd = ::accept( ld_ , (struct sockaddr*)&peer, &asiz );
+			if ( newsd >= 0 ) {
+				::close( newsd );
+				fprintf(stderr, "WARNING: a new client (%s) tried to connect; I just closed this connection\n", inet_ntoa( peer.sin_addr ) );
+				fprintf(stderr, "         XVC supports only a single client!\n");
+			}
+		}
+	
+	} while ( ! FD_ISSET(sd_, &fds) );
+
+	return ::read(sd_, buf, l);
 }
 
 // fill rx buffer to 'n' octets
@@ -50,7 +84,7 @@ unsigned long k = n;
 
 	k -= rl_;
 	while ( k > 0 ) {
-		got = read( sd_, p, k );
+		got = read( p, k );
 		if ( got <= 0 ) {
 			throw SysErr("Unable to read from socket");
 		}
@@ -146,7 +180,7 @@ unsigned long off;
 
 	// read stuff;
 
-	got = read( sd_, rp_, chunk_ );
+	got = read( rp_, chunk_ );
 	if ( got <= 0 ) {
 		throw SysErr("Unable to read from socket");
 	}

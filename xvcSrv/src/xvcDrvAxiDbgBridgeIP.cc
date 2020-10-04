@@ -132,7 +132,6 @@ struct   timespec then, now;
 			return sizeof(uint32_t);
 
 		default:
-printf("%08x\n", (unsigned long)hdr);
 			throw std::runtime_error("AxiDbgBridgeIP driver: xfer() found unexpected command");
 	}
 

@@ -27,6 +27,7 @@
 class XvcConn {
 	JtagDriver        *drv_;
 	int                sd_;
+	int                ld_;
 	struct sockaddr_in peer_;
 	// just use vectors to back raw memory; DONT use 'size/resize'
 	// (unfortunately 'resize' fills elements beyond the current 'size'
@@ -49,6 +50,11 @@ XvcConn( int sd, JtagDriver *drv, unsigned long maxVecLen_ = 32768 );
 
 	// send tx buffer to TCP connection
 	virtual void flush();
+
+	// delegate to read but while blocking make sure to
+	// reject attempts by other clients to connect by accepting
+	// and closing extra connections
+    virtual ssize_t read(void *buf, size_t l);
 
 	// discard 'n' octets from rx buffer (mark as consumed)
 	virtual void bump(unsigned long n);

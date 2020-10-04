@@ -28,9 +28,9 @@
 CROSS=
 USR_CPPFLAGS=
 
-CROSS=/opt/eldk-5.2/powerpc-e500v2/sysroots/i686-eldk-linux/usr/bin/ppce500v2-linux-gnuspe/powerpc-e500v2-
-TOSCAINC=-I/afs/psi.ch/user/s/straumann_t/epics/modules/tosca/toscaApi/include/
-TOSCALIB=-L/afs/psi.ch/user/s/straumann_t/epics/modules/tosca/toscaApi/ -Wl,-Bstatic -ltoscaApi -Wl,-Bdynamic
+#CROSS=/opt/eldk-5.2/powerpc-e500v2/sysroots/i686-eldk-linux/usr/bin/ppce500v2-linux-gnuspe/powerpc-e500v2-
+#TOSCAINC=-I/afs/psi.ch/user/s/straumann_t/epics/modules/tosca/toscaApi/include/
+#TOSCALIB=-L/afs/psi.ch/user/s/straumann_t/epics/modules/tosca/toscaApi/ -Wl,-Bstatic -ltoscaApi -Wl,-Bdynamic
 TMEM_DRIVER_BUILTIN=YES
 
 #
