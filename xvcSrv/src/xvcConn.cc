@@ -45,13 +45,13 @@ fd_set fds;
 int    nfds = (sd_ > ld_ ? sd_ : ld_) + 1;
 int    got;
 
-	FD_ZERO( &fds );
-	FD_SET(  sd_, &fds );
-	FD_SET(  ld_, &fds );
-
 	do {
+		FD_ZERO( &fds );
+		FD_SET(  sd_, &fds );
+		FD_SET(  ld_, &fds );
 
-	    if ( (got = select( nfds, &fds, 0, 0, 0 )) ) {
+
+		if ( (got = select( nfds, &fds, 0, 0, 0 )) < 0 ) {
 			throw SysErr("select failed");
 		}
 
@@ -59,9 +59,10 @@ int    got;
 			struct sockaddr_in peer;
 			socklen_t          asiz  = sizeof(peer);
 			int                newsd = ::accept( ld_ , (struct sockaddr*)&peer, &asiz );
+printf("Activity on LSD\n");
 			if ( newsd >= 0 ) {
 				::close( newsd );
-				fprintf(stderr, "WARNING: a new client (%s) tried to connect; I just closed this connection\n", inet_ntoa( peer.sin_addr ) );
+				fprintf(stderr, "WARNING: a new client (%s:%hu) tried to connect; I just closed this connection\n", inet_ntoa( peer.sin_addr ), ntohs( peer.sin_port ) );
 				fprintf(stderr, "         XVC supports only a single client!\n");
 			}
 		}
